@@ -151,20 +151,21 @@ class SessionPlugin(BasePlugin):
                     if refresh_success:
                         await event.reply(
                             "✅ SESSION 已保存并生效\n\n"
-                            "Userbot 客户端已自动更新，无需重启机器人\n"
+                            "Userbot 客户端已自动更新并启动成功\n"
                             "使用 /sessions 查看所有会话"
                         )
                     else:
                         await event.reply(
-                            "✅ SESSION 已保存并生效\n\n"
-                            "Userbot 客户端已自动更新，无需重启机器人\n"
+                            "✅ SESSION 已保存，但Userbot客户端启动失败\n\n"
+                            "请检查日志或尝试重启机器人\n"
                             "使用 /sessions 查看所有会话"
                         )
                 except Exception as refresh_error:
                     self.logger.error(f"动态刷新 SESSION 失败: {refresh_error}")
                     await event.reply(
-                        "✅ SESSION 已保存并生效\n\n"
-                        "Userbot 客户端已自动更新，无需重启机器人\n"
+                        "✅ SESSION 已保存，但Userbot客户端刷新时出错\n\n"
+                        f"错误信息: {str(refresh_error)}\n"
+                        "请检查日志或尝试重启机器人\n"
                         "使用 /sessions 查看所有会话"
                     )
             else:
