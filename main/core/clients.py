@@ -407,7 +407,8 @@ class ClientManager:
                             "saverestricted", 
                             session_string=settings.SESSION, 
                             api_hash=settings.API_HASH, 
-                            api_id=settings.API_ID
+                            api_id=settings.API_ID,
+                            sleep_threshold=0  # 添加sleep_threshold参数
                         )
                     else:
                         # 对于SOCKS代理或其他情况，正常使用proxy参数
@@ -416,14 +417,16 @@ class ClientManager:
                             session_string=settings.SESSION, 
                             api_hash=settings.API_HASH, 
                             api_id=settings.API_ID,
-                            proxy=pyrogram_proxy_config
+                            proxy=pyrogram_proxy_config,
+                            sleep_threshold=0  # 添加sleep_threshold参数
                         )
                 else:
                     self.userbot = Client(
                         "saverestricted", 
                         session_string=settings.SESSION, 
                         api_hash=settings.API_HASH, 
-                        api_id=settings.API_ID
+                        api_id=settings.API_ID,
+                        sleep_threshold=0  # 添加sleep_threshold参数
                     )
                 
                 # 尝试启动Userbot
