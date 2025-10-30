@@ -503,7 +503,8 @@ class ClientManager:
         # 对于其他SESSION，至少需要10个字符
         if len(session_string) < 10:
             self.logger.warning(f"SESSION长度不足: {len(session_string)} 字符")
-            return None
+            # 即使长度不足，也返回原始字符串尝试启动
+            return session_string
         
         try:
             # 清理字符串，移除所有非base64字符
@@ -525,32 +526,40 @@ class ClientManager:
             # 验证是否符合Base64模式
             if not re.match(r'^[A-Za-z0-9+/]*={0,2}$', cleaned_session):
                 self.logger.warning(f"SESSION不符合Base64模式: {cleaned_session[:50]}...")
-                return None
+                # 即使格式不匹配，也返回原始字符串尝试启动
+                return session_string
             
             # 尝试解码以验证格式
             import base64
-            decoded = base64.b64decode(cleaned_session)
-            
-            # 检查解码后的数据长度是否合理（通常SESSION数据应该有一定的最小长度）
-            if len(decoded) < 100:
-                self.logger.warning(f"SESSION解码后数据长度过短: {len(decoded)} 字节")
-                return None
+            try:
+                decoded = base64.b64decode(cleaned_session)
                 
-            # 特别检查是否符合Pyrogram SESSION格式
-            # Pyrogram SESSION通常以特定的字节序列开始
-            if len(decoded) >= 4:
-                # 检查前4个字节是否符合Pyrogram SESSION格式
-                # Pyrogram SESSION通常以特定的版本号开始
-                version_byte = decoded[0]
-                if version_byte in [1, 2, 3]:  # Pyrogram SESSION版本号
-                    self.logger.info(f"检测到有效的Pyrogram SESSION，版本: {version_byte}")
-                    return session_string  # 返回原始字符串，因为它可能是有效的
+                # 检查解码后的数据长度是否合理（通常SESSION数据应该有一定的最小长度）
+                if len(decoded) < 100:
+                    self.logger.warning(f"SESSION解码后数据长度过短: {len(decoded)} 字节")
+                    # 即使长度过短，也返回原始字符串尝试启动
+                    return session_string
+                    
+                # 特别检查是否符合Pyrogram SESSION格式
+                # Pyrogram SESSION通常以特定的字节序列开始
+                if len(decoded) >= 4:
+                    # 检查前4个字节是否符合Pyrogram SESSION格式
+                    # Pyrogram SESSION通常以特定的版本号开始
+                    version_byte = decoded[0]
+                    if version_byte in [1, 2, 3]:  # Pyrogram SESSION版本号
+                        self.logger.info(f"检测到有效的Pyrogram SESSION，版本: {version_byte}")
+                        return session_string  # 返回原始字符串，因为它可能是有效的
+            except Exception as decode_error:
+                self.logger.warning(f"SESSION解码失败: {decode_error}")
+                # 解码失败时，返回原始字符串尝试启动
+                return session_string
             
             self.logger.info("SESSION验证通过")
             return cleaned_session
         except Exception as e:
             self.logger.warning(f"SESSION验证失败: {e}")
-            return None
+            # 验证失败时，返回原始字符串尝试启动
+            return session_string
     
     async def stop_clients(self):
         """停止所有客户端"""
