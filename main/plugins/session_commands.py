@@ -233,19 +233,15 @@ class SessionPlugin(BasePlugin):
                 )
                 return
             
-            # 将SESSION分段显示，每行最多60个字符，使用代码块格式防止复制
-            session_lines = []
-            chunk_size = 60
-            for i in range(0, len(session), chunk_size):
-                session_lines.append(session[i:i+chunk_size])
-            
+            # 创建一个可以一键复制的格式
             msg = "🔐 **您的 SESSION 信息**\n\n"
             msg += f"用户ID: `{event.sender_id}`\n\n"
-            msg += "**SESSION**（分段显示）:\n"
-            msg += "```\n"
-            for idx, line in enumerate(session_lines, 1):
-                msg += f"{line}\n"
-            msg += "```\n\n"
+            msg += "**SESSION**（点击下方文本即可全选复制）:\n"
+            msg += f"||`{session}`||\n\n"  # 使用隐藏文本格式，点击即可全选
+            msg += "👉 **使用方法**:\n"
+            msg += "1️⃣ 点击上面的SESSION文本\n"
+            msg += "2️⃣ 长按选择\"全选\"\n"
+            msg += "3️⃣ 点击\"复制\"\n\n"
             msg += "⚠️ **安全提示**:\n"
             msg += "• 请勿泄露此信息给任何人\n"
             msg += "• SESSION可以完全控制您的账号\n"
