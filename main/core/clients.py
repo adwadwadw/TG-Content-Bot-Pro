@@ -356,7 +356,10 @@ class ClientManager:
             if settings.SESSION:
                 # 对于Pyrogram SESSION，直接使用原始字符串，不做任何验证或清理
                 # Pyrogram SESSION格式特殊，过度处理可能导致格式错误
-                if settings.SESSION.startswith(("1", "2", "3")):
+                # Pyrogram SESSION通常比较长且包含特定的Base64字符模式
+                if (settings.SESSION.startswith(("1", "2", "3")) or 
+                    (len(settings.SESSION) > 100 and 
+                     all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" for c in settings.SESSION.replace("=", "")))):
                     logger.info("检测到Pyrogram SESSION格式，跳过验证和清理")
                     corrected_session = settings.SESSION
                 else:
