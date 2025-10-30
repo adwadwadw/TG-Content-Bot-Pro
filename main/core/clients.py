@@ -354,18 +354,24 @@ class ClientManager:
                     logger.info("从会话服务加载SESSION成功")
             
             if settings.SESSION:
-                # 验证SESSION格式并获取修正后的值
-                corrected_session = self._validate_and_fix_session(settings.SESSION)
-                
-                # 即使SESSION验证失败，也尝试使用原始SESSION启动Userbot
-                if corrected_session is None:
-                    logger.warning("SESSION验证失败，但仍将尝试使用原始SESSION启动Userbot")
+                # 对于Pyrogram SESSION，直接使用原始字符串，不做任何验证或清理
+                # Pyrogram SESSION格式特殊，过度处理可能导致格式错误
+                if settings.SESSION.startswith(("1", "2", "3")):
+                    logger.info("检测到Pyrogram SESSION格式，跳过验证和清理")
                     corrected_session = settings.SESSION
-                
-                # 只在SESSION被修正时更新配置
-                if corrected_session != settings.SESSION:
-                    settings.SESSION = corrected_session
-                    logger.info("SESSION已自动修复")
+                else:
+                    # 对于其他SESSION，验证SESSION格式并获取修正后的值
+                    corrected_session = self._validate_and_fix_session(settings.SESSION)
+                    
+                    # 即使SESSION验证失败，也尝试使用原始SESSION启动Userbot
+                    if corrected_session is None:
+                        logger.warning("SESSION验证失败，但仍将尝试使用原始SESSION启动Userbot")
+                        corrected_session = settings.SESSION
+                    
+                    # 只在SESSION被修正时更新配置
+                    if corrected_session != settings.SESSION:
+                        settings.SESSION = corrected_session
+                        logger.info("SESSION已自动修复")
                 
                 # 掩码敏感信息用于日志
                 masked_session = security_manager.mask_sensitive_data(settings.SESSION, 15)
