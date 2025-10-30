@@ -313,6 +313,9 @@ class SessionPlugin(BasePlugin):
                 return
             
             del self.session_generation_tasks[user_id]
+            # 取消标记用户会话状态
+            from .message_handler import message_handler_plugin
+            message_handler_plugin.mark_user_in_conversation(user_id, False)
             await event.reply("✅ SESSION 生成任务已取消")
             
         except Exception as e:
@@ -324,6 +327,10 @@ class SessionPlugin(BasePlugin):
         
         if user_id not in self.session_generation_tasks:
             return
+        
+        # 标记用户正在进行会话，避免消息处理插件干扰
+        from .message_handler import message_handler_plugin
+        message_handler_plugin.mark_user_in_conversation(user_id, True)
         
         task = self.session_generation_tasks[user_id]
         step = task['step']
@@ -420,6 +427,9 @@ class SessionPlugin(BasePlugin):
                 except Exception as e:
                     self.logger.error(f"发送验证码失败: {type(e).__name__}: {str(e)}")
                     await temp_client.disconnect()
+                    # 取消标记用户会话状态
+                    from .message_handler import message_handler_plugin
+                    message_handler_plugin.mark_user_in_conversation(user_id, False)
                     # 提供更友好的错误提示信息
                     error_msg = "❌ 发送验证码失败\n\n"
                     if "FLOOD_WAIT" in str(e).upper():
@@ -500,6 +510,9 @@ class SessionPlugin(BasePlugin):
                     except Exception as resend_error:
                         await event.reply(f"❌ 重新发送验证码失败: {str(resend_error)}\n\n请使用 /generatesession 重新开始")
                         await temp_client.disconnect()
+                        # 取消标记用户会话状态
+                        from .message_handler import message_handler_plugin
+                        message_handler_plugin.mark_user_in_conversation(user_id, False)
                         del self.session_generation_tasks[user_id]
                         return
                 
@@ -523,6 +536,9 @@ class SessionPlugin(BasePlugin):
                     if elapsed_time > self.CODE_TIMEOUT:
                         if temp_client:
                             await temp_client.disconnect()
+                        # 取消标记用户会话状态
+                        from .message_handler import message_handler_plugin
+                        message_handler_plugin.mark_user_in_conversation(user_id, False)
                         await event.reply(
                             "❌ 验证码已过期(超过3分钟)\n\n"
                             "请使用 /generatesession 重新开始"
@@ -554,6 +570,10 @@ class SessionPlugin(BasePlugin):
                 session_string = await temp_client.export_session_string()
                 
                 await temp_client.disconnect()
+                
+                # 取消标记用户会话状态
+                from .message_handler import message_handler_plugin
+                message_handler_plugin.mark_user_in_conversation(user_id, False)
                 
                 del self.session_generation_tasks[user_id]
                 
@@ -619,6 +639,10 @@ class SessionPlugin(BasePlugin):
                 
                 await temp_client.disconnect()
                 
+                # 取消标记用户会话状态
+                from .message_handler import message_handler_plugin
+                message_handler_plugin.mark_user_in_conversation(user_id, False)
+                
                 del self.session_generation_tasks[user_id]
                 
                 success = await session_service.save_session(user_id, session_string)
@@ -661,6 +685,9 @@ class SessionPlugin(BasePlugin):
         except Exception as e:
             await event.reply(f"❌ 处理失败: {str(e)}\n\n请使用 /generatesession 重新开始")
             if user_id in self.session_generation_tasks:
+                # 取消标记用户会话状态
+                from .message_handler import message_handler_plugin
+                message_handler_plugin.mark_user_in_conversation(user_id, False)
                 del self.session_generation_tasks[user_id]
     
     async def _handle_text_input(self, event):
