@@ -296,7 +296,7 @@ class ClientManager:
                 pyrogram_proxy_config = self._create_pyrogram_proxy_config(pyrogram_proxy)
                 if pyrogram_proxy_config:
                     masked_user = security_manager.mask_sensitive_data(str(pyrogram_proxy_config.get('username', ''))) if pyrogram_proxy_config.get('username') else ''
-logger.info(f"使用代理: {pyrogram_proxy_config['scheme']}://{masked_user+'@' if masked_user else ''}{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}")
+                    logger.info(f"使用代理: {pyrogram_proxy_config['scheme']}://{masked_user+'@' if masked_user else ''}{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}")
                 
                 # 对于HTTP代理认证，Pyrogram可能不支持通过proxy参数传递
                 # 尝试使用环境变量设置代理
@@ -379,7 +379,7 @@ logger.info(f"使用代理: {pyrogram_proxy_config['scheme']}://{masked_user+'@'
                     pyrogram_proxy_config = self._create_pyrogram_proxy_config(pyrogram_proxy)
                     if pyrogram_proxy_config:
                         masked_user = security_manager.mask_sensitive_data(str(pyrogram_proxy_config.get('username', ''))) if pyrogram_proxy_config.get('username') else ''
-logger.info(f"Userbot使用代理: {pyrogram_proxy_config['scheme']}://{masked_user+'@' if masked_user else ''}{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}")
+                        logger.info(f"Userbot使用代理: {pyrogram_proxy_config['scheme']}://{masked_user+'@' if masked_user else ''}{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}")
                     
                     # 对于HTTP代理认证，Pyrogram可能不支持通过proxy参数传递
                     # 尝试使用环境变量设置代理
@@ -392,7 +392,7 @@ logger.info(f"Userbot使用代理: {pyrogram_proxy_config['scheme']}://{masked_u
                             proxy_url = f"{pyrogram_proxy_config['scheme']}://{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}"
                         os.environ['HTTP_PROXY'] = proxy_url
                         os.environ['HTTPS_PROXY'] = proxy_url
-                        logger.info(f"通过环境变量设置代理: {proxy_url}")
+                        logger.info("通过环境变量设置代理: <masked>")
                         # 不传递proxy参数，让Pyrogram使用环境变量
                         self.userbot = Client(
                             "saverestricted", 
