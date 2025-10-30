@@ -585,14 +585,14 @@ class SessionPlugin(BasePlugin):
                             await event.reply(
                                 "✅ **SESSION 生成成功！**\n\n"
                                 "SESSION 已自动保存到数据库\n"
-                                "Userbot 客户端已自动更新，无需重启机器人\n\n"
+                                "Userbot 客户端已自动更新并启动成功\n\n"
                                 "🔐 使用 /mysession 查看您的 SESSION"
                             )
                         else:
                             await event.reply(
                                 "✅ **SESSION 生成成功！**\n\n"
                                 "SESSION 已自动保存到数据库\n"
-                                "Userbot 客户端已自动更新，无需重启机器人\n\n"
+                                "但Userbot客户端启动失败，请检查日志或重启机器人\n\n"
                                 "🔐 使用 /mysession 查看您的 SESSION"
                             )
                     except Exception as refresh_error:
@@ -653,14 +653,14 @@ class SessionPlugin(BasePlugin):
                             await event.reply(
                                 "✅ **SESSION 生成成功！**\n\n"
                                 "SESSION 已自动保存到数据库\n"
-                                "Userbot 客户端已自动更新，无需重启机器人\n\n"
+                                "Userbot 客户端已自动更新并启动成功\n\n"
                                 "🔐 使用 /mysession 查看您的 SESSION"
                             )
                         else:
                             await event.reply(
                                 "✅ **SESSION 生成成功！**\n\n"
                                 "SESSION 已自动保存到数据库\n"
-                                "Userbot 客户端已自动更新，无需重启机器人\n\n"
+                                "但Userbot客户端启动失败，请检查日志或重启机器人\n\n"
                                 "🔐 使用 /mysession 查看您的 SESSION"
                             )
                     except Exception as refresh_error:
