@@ -36,6 +36,8 @@ class SessionPlugin(BasePlugin):
             incoming=True, from_users=settings.AUTH, pattern="/generatesession"))
         client_manager.bot.add_event_handler(self._cancel_session, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/cancelsession"))
+        client_manager.bot.add_event_handler(self._retry_session, events.NewMessage(
+            incoming=True, from_users=settings.AUTH, pattern="/retry_session"))
         client_manager.bot.add_event_handler(self._handle_text_input, events.NewMessage(
             incoming=True, from_users=settings.AUTH, func=lambda e: not e.text.startswith('/')))
         
@@ -56,6 +58,8 @@ class SessionPlugin(BasePlugin):
             incoming=True, from_users=settings.AUTH, pattern="/generatesession"))
         client_manager.bot.remove_event_handler(self._cancel_session, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/cancelsession"))
+        client_manager.bot.remove_event_handler(self._retry_session, events.NewMessage(
+            incoming=True, from_users=settings.AUTH, pattern="/retry_session"))
         client_manager.bot.remove_event_handler(self._handle_text_input, events.NewMessage(
             incoming=True, from_users=settings.AUTH, func=lambda e: not e.text.startswith('/')))
         
@@ -155,9 +159,13 @@ class SessionPlugin(BasePlugin):
                             "使用 /sessions 查看所有会话"
                         )
                     else:
+                        # 即使刷新失败，也给用户一个重试的机会
                         await event.reply(
                             "✅ SESSION 已保存，但Userbot客户端启动失败\n\n"
-                            "请检查日志或尝试重启机器人\n"
+                            "请尝试以下解决方案：\n"
+                            "1. 检查SESSION是否有效\n"
+                            "2. 使用 /retry_session 命令重试启动\n"
+                            "3. 重启机器人\n"
                             "使用 /sessions 查看所有会话"
                         )
                 except Exception as refresh_error:
@@ -165,7 +173,10 @@ class SessionPlugin(BasePlugin):
                     await event.reply(
                         "✅ SESSION 已保存，但Userbot客户端刷新时出错\n\n"
                         f"错误信息: {str(refresh_error)}\n"
-                        "请检查日志或尝试重启机器人\n"
+                        "请尝试以下解决方案：\n"
+                        "1. 检查SESSION是否有效\n"
+                        "2. 使用 /retry_session 命令重试启动\n"
+                        "3. 重启机器人\n"
                         "使用 /sessions 查看所有会话"
                     )
             else:
@@ -317,6 +328,37 @@ class SessionPlugin(BasePlugin):
             
         except Exception as e:
             await event.reply(f"❌ 取消失败: {str(e)}")
+    
+    async def _retry_session(self, event):
+        """重试 SESSION 启动"""
+        try:
+            user_id = event.sender_id
+            
+            # 从数据库获取SESSION
+            session_string = await session_service.get_session(user_id)
+            if not session_string:
+                await event.reply("❌ 未找到保存的 SESSION\n\n使用 /addsession 添加")
+                return
+            
+            await event.reply("⏳ 正在重试启动Userbot客户端...")
+            
+            # 尝试重新初始化Userbot
+            from ..core.clients import client_manager
+            refresh_success = await client_manager.refresh_userbot_session(session_string)
+            
+            if refresh_success:
+                await event.reply(
+                    "✅ Userbot客户端启动成功\n\n"
+                    "现在可以访问受限内容了"
+                )
+            else:
+                await event.reply(
+                    "❌ Userbot客户端启动失败\n\n"
+                    "请检查SESSION是否有效或尝试重启机器人"
+                )
+                
+        except Exception as e:
+            await event.reply(f"❌ 重试失败: {str(e)}")
     
     async def _handle_session_generation_input(self, event):
         """处理 SESSION 生成过程中的用户输入"""
