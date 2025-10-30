@@ -610,16 +610,25 @@ class ClientManager:
             # 重新初始化userbot
             await self._init_userbot()
             
-            logger.info("Userbot SESSION刷新成功")
-            return self.userbot is not None and self.userbot.is_connected
+            # 检查userbot是否成功启动
+            success = self.userbot is not None and self.userbot.is_connected
+            if success:
+                logger.info("Userbot SESSION刷新成功")
+            else:
+                logger.warning("Userbot SESSION刷新完成，但客户端未连接")
+            return success
         except Exception as e:
             logger.error(f"刷新Userbot SESSION时出错: {e}")
             # 即使出错也尝试使用原始SESSION初始化
             try:
                 settings.SESSION = new_session
                 await self._init_userbot()
-                logger.info("Userbot SESSION使用原始字符串刷新成功")
-                return self.userbot is not None and self.userbot.is_connected
+                success = self.userbot is not None and self.userbot.is_connected
+                if success:
+                    logger.info("Userbot SESSION使用原始字符串刷新成功")
+                else:
+                    logger.warning("Userbot SESSION使用原始字符串刷新完成，但客户端未连接")
+                return success
             except Exception as fallback_error:
                 logger.error(f"使用原始SESSION刷新也失败: {fallback_error}")
                 # 最后的备用方案：尝试使用数据库中的SESSION
@@ -629,8 +638,12 @@ class ClientManager:
                         logger.info("尝试使用数据库中的SESSION作为最后备用方案")
                         settings.SESSION = db_session
                         await self._init_userbot()
-                        logger.info("使用数据库SESSION刷新Userbot成功")
-                        return self.userbot is not None and self.userbot.is_connected
+                        success = self.userbot is not None and self.userbot.is_connected
+                        if success:
+                            logger.info("使用数据库SESSION刷新Userbot成功")
+                        else:
+                            logger.warning("使用数据库SESSION刷新Userbot完成，但客户端未连接")
+                        return success
                 except Exception as last_fallback_error:
                     logger.error(f"使用数据库SESSION作为备用方案也失败: {last_fallback_error}")
                 return False
