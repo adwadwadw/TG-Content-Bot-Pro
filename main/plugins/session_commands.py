@@ -70,6 +70,10 @@ class SessionPlugin(BasePlugin):
         if not session_string:
             return False, "SESSION字符串不能为空"
         
+        # 检查是否可能是手机号码（以+开头且长度较短）
+        if session_string.startswith('+') and len(session_string) < 20:
+            return False, "这看起来像是手机号码，请在SESSION生成流程中使用"
+        
         # 清理字符串，移除所有非base64字符，但保留换行符和空格以便后续处理
         import re
         # 先保存原始字符串用于显示
