@@ -31,7 +31,7 @@ check_env_variables() {
     fi
     
     # 如果系统环境变量不完整，检查.env文件
-    if [ ${#missing_vars[@]} -gt 0 ] || [ -z "$TELEGRAM_PROXY_SCHEME" ] || [ -z "$TELEGRAM_PROXY_HOST" ] || [ -z "$TELEGRAM_PROXY_PORT" ]; then
+    if [ ${#missing_vars[@]} -gt 0 ]; then
         if [ -f ".env" ]; then
             # 逐行读取.env文件
             while IFS= read -r line || [[ -n "$line" ]]; do
@@ -156,16 +156,6 @@ EOF_TEST
     echo ""
     echo "🚀 启动机器人..."
     echo ""
-    
-    # 检查是否需要测试代理
-    if [ "$TEST_PROXY" = "1" ]; then
-        echo "🧪 测试代理配置..."
-        python3 test_proxy.py
-        if [ $? -ne 0 ]; then
-            echo "⚠️  代理测试失败，但仍继续启动机器人"
-        fi
-        echo ""
-    fi
     
     # 启动机器人
     python3 -m main
