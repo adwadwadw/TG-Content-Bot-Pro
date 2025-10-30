@@ -87,7 +87,7 @@ class DownloadService:
                         if edit_id > 0:
                             edit = await client.edit_message_text(sender, edit_id, "克隆中...")
                         if msg.text:
-                            await client.send_message(sender, msg.text.markdown)
+                            await client.send_message(sender, msg.text, parse_mode="markdown")
                         if edit_id > 0 and edit:
                             await edit.delete()
                         return True
@@ -96,7 +96,7 @@ class DownloadService:
                     if msg.text:
                         if edit_id > 0:
                             edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-                        await client.send_message(sender, msg.text.markdown)
+                        await client.send_message(sender, msg.text, parse_mode="markdown")
                         if edit_id > 0 and edit:
                             await edit.delete()
                         return True
@@ -167,7 +167,7 @@ class DownloadService:
                             time.time()
                         )
                     )
-                elif msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
+                elif msg.media == MessageMediaType.VIDEO and getattr(msg, "video", None) and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
                     logger.info("获取视频元数据")
                     data = video_metadata(file)
                     height, width, duration = data["height"], data["width"], data["duration"]
@@ -371,8 +371,10 @@ class DownloadService:
             bool: 上传是否成功
         """
         try:
-            if msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-                UT = time.time()
+            # 统一定义上传时间戳
+            UT = time.time()
+
+            if msg.media == MessageMediaType.VIDEO and getattr(msg, "video", None) and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
                 uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
                 attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)] 
                 await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
@@ -381,23 +383,24 @@ class DownloadService:
                 attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)] 
                 await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
             else:
-                UT = time.time()
                 uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
                 await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, force_document=True)
             
             await self._cleanup_file(file)
             
             # 记录流量和下载成功（Telethon上传）
-            media_type = "video" if msg.video else "document"
+            media_type = "video" if getattr(msg, "video", None) else "document"
             await self.traffic.add_traffic(sender, file_size, file_size)
             await self.db.add_download(sender, msg_link, msg_id, str(chat), media_type, file_size, "success")
-            await edit.delete()
+            if edit_id > 0 and edit:
+                await edit.delete()
             return True
             
         except Exception as e:
             logger.error(f"使用Telethon上传时出错: {e}", exc_info=True)
             error_msg = self._translate_error(str(e))
-            await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {error_msg}')
+            if edit_id > 0:
+                await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {error_msg}')
             await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", file_size, "failed")
             await self._cleanup_file(file)
             return False
@@ -424,7 +427,7 @@ class DownloadService:
         chat = msg_link.split("t.me")[1].split("/")[1]
         try:
             msg = await client.get_messages(chat, msg_id)
-            if msg.empty:
+            if not msg:
                 new_link = f't.me/b/{chat}/{int(msg_id)}'
                 return await self.download_message(None, client, None, sender, edit_id, new_link, 0)
             await client.copy_message(sender, chat, msg_id)

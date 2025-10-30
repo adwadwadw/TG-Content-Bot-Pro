@@ -42,6 +42,10 @@ python3 init_database.py
 # Run installation script
 cd TG-Content-Bot-Pro
 bash install.sh
+
+# Test proxy configuration
+cd TG-Content-Bot-Pro
+python3 test_proxy.py
 ```
 
 ### Development Commands
@@ -49,6 +53,9 @@ bash install.sh
 ```bash
 # Install dependencies
 pip install -r requirements.txt
+
+# Run with debug logging
+LOG_LEVEL=DEBUG python3 -m main
 
 # Run tests (if available)
 # (No specific test framework identified in the codebase)
@@ -276,7 +283,9 @@ main/
 │   ├── clients.py       # Telegram client management
 │   ├── database.py      # Database operations
 │   ├── plugin_manager.py # Plugin loading system
-│   └── base_plugin.py   # Base plugin class
+│   ├── base_plugin.py   # Base plugin class
+│   ├── task_queue.py    # Task queue management
+│   └── rate_limiter.py  # Rate limiting
 ├── plugins/             # Bot command plugins
 │   ├── message_handler.py # Message link processing
 │   ├── batch.py         # Batch download functionality
