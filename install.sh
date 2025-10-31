@@ -275,40 +275,13 @@ clone_repository() {
     print_step "克隆项目代码"
     
     if [ -d "$install_dir/.git" ]; then
-        print_info "目录已包含 git 仓库，更新代码..."
+        print_info "目录已包含 git 仓库，强制覆盖本地代码..."
         cd "$install_dir"
-        # 处理本地修改，使用 stash 保存本地修改后再更新
-        if ! git diff --quiet || ! git diff --cached --quiet; then
-            print_warning "检测到本地修改，使用 stash 临时保存"
-            git stash push -m "Auto stash before update"
-        fi
-        git pull origin main
-        # 如果之前有 stash，恢复它
-        if git stash list | grep -q "Auto stash before update"; then
-            print_info "恢复之前的本地修改"
-            # 尝试恢复并自动处理常见冲突
-            if git stash pop; then
-                :
-            else
-                print_warning "检测到合并冲突，尝试自动处理常见文件冲突"
-                # 专门处理 session_commands.py 的冲突，保留远端修复
-                if git ls-files -u | awk '{print $4}' | sort -u | grep -q "^main/plugins/session_commands.py$"; then
-                    print_info "自动解决: main/plugins/session_commands.py 保留远端版本"
-                    git checkout --theirs main/plugins/session_commands.py
-                    git add main/plugins/session_commands.py
-                    # 如果仍有其它未解决的冲突，提示并退出
-                    if git ls-files -u | awk '{print $4}' | sort -u | grep -v "^main/plugins/session_commands.py$" | grep -q "."; then
-                        print_error "存在未自动处理的冲突文件，请手动解决后重试"
-                        exit 1
-                    fi
-                    # 创建一次本地合并提交以完成合并
-                    git commit -m "解决合并冲突：保留远端修复 (session_commands.py)"
-                else
-                    print_error "发生合并冲突，且不在可自动处理范围，请手动解决后重试"
-                    exit 1
-                fi
-            fi
-        fi
+        # 强制以远端为准覆盖本地（丢弃本地改动）
+        git fetch origin main
+        git reset --hard origin/main
+        # 清理未跟踪文件（可选，如需保留本地下载文件请注释下一行）
+        git clean -fd
     else
         print_info "克隆代码到: $install_dir"
         git clone https://github.com/liwoyuandiane/TG-Content-Bot-Pro.git "$install_dir"
