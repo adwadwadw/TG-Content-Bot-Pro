@@ -67,18 +67,18 @@ def setup_logging():
     root_logger.addHandler(console_handler)
     root_logger.addHandler(file_handler)
     
-    # 为不同模块设置不同的日志级别 - 增加详细程度
-    logging.getLogger("pyrogram").setLevel(logging.DEBUG)  # 增加Pyrogram日志级别
-    logging.getLogger("telethon").setLevel(logging.DEBUG)  # 增加Telethon日志级别
-    logging.getLogger("pymongo").setLevel(logging.INFO)   # 增加MongoDB日志级别
+    # 为不同模块设置合理的日志级别 - 优化日志量
+    logging.getLogger("pyrogram").setLevel(logging.WARNING)  # 减少Pyrogram日志级别
+    logging.getLogger("telethon").setLevel(logging.WARNING)  # 减少Telethon日志级别
+    logging.getLogger("pymongo").setLevel(logging.WARNING)   # 减少MongoDB日志级别
     
-    # 设置更详细的日志
-    logging.getLogger("main").setLevel(logging.DEBUG)
+    # 设置合理的日志级别
+    logging.getLogger("main").setLevel(log_level)
     
-    # 为特定模块设置更详细的日志级别
-    logging.getLogger("main.services.download_service").setLevel(logging.DEBUG)
-    logging.getLogger("main.core.clients").setLevel(logging.DEBUG)
-    logging.getLogger("main.services.session_service").setLevel(logging.DEBUG)
+    # 为特定模块设置合理的日志级别
+    logging.getLogger("main.services.download_service").setLevel(log_level)
+    logging.getLogger("main.core.clients").setLevel(log_level)
+    logging.getLogger("main.services.session_service").setLevel(log_level)
     
     logger = logging.getLogger(__name__)
     logger.info("=" * 60)
