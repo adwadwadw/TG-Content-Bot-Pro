@@ -65,11 +65,7 @@ class ImprovedTaskQueue:
         self._current_concurrency = max_workers
         self._min_concurrency = 1
         # 允许通过环境变量或配置调整最大并发
-        try:
-            from ..config import settings
-            self._max_concurrency = max(2, int(getattr(settings, 'MAX_WORKERS', self._max_concurrency)))
-        except Exception:
-            self._max_concurrency = 10
+        self._max_concurrency = 10
         self._upscale_enable = True  # 允许在低负载时上调并发
         
         # 使用asyncio.Queue替代deque，提供更好的线程安全性
