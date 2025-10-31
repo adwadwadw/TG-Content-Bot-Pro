@@ -11,7 +11,7 @@ from ..config import settings
 from ..services.session_service import session_service
 from ..services.user_service import user_service
 
-from telethon import events
+from telethon import events, Button
 
 class SessionPlugin(BasePlugin):
     """会话管理插件"""
@@ -30,6 +30,8 @@ class SessionPlugin(BasePlugin):
             incoming=True, from_users=settings.AUTH, pattern="/delsession"))
         client_manager.bot.add_event_handler(self._list_sessions, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/sessions"))
+        client_manager.bot.add_event_handler(self._view_session_callback, events.CallbackQuery(
+            pattern=rb"view_session:\d+"))
         client_manager.bot.add_event_handler(self._my_session, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/mysession"))
         client_manager.bot.add_event_handler(self._generate_session, events.NewMessage(
@@ -52,6 +54,8 @@ class SessionPlugin(BasePlugin):
             incoming=True, from_users=settings.AUTH, pattern="/delsession"))
         client_manager.bot.remove_event_handler(self._list_sessions, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/sessions"))
+        client_manager.bot.remove_event_handler(self._view_session_callback, events.CallbackQuery(
+            pattern=rb"view_session:\d+"))
         client_manager.bot.remove_event_handler(self._my_session, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/mysession"))
         client_manager.bot.remove_event_handler(self._generate_session, events.NewMessage(
@@ -243,6 +247,7 @@ class SessionPlugin(BasePlugin):
             
             msg = "📋 **已保存的 SESSION 列表**\n\n"
             encryption_enabled = session_service.cipher_suite is not None
+            buttons = []
             for i, user in enumerate(sessions, 1):
                 user_id = user.get("user_id")
                 username = user.get("username", "未知")
@@ -250,7 +255,9 @@ class SessionPlugin(BasePlugin):
                 session_preview = session[:20] + "..." if len(session) > 20 else session
                 
                 msg += f"{i}. **用户**: {username} ({user_id})\n"
-                msg += f"   SESSION: {session_preview}\n\n"
+                msg += f"   SESSION: {session_preview}\n"
+                msg += f"   👉 点击下方按钮查看完整SESSION\n\n"
+                buttons.append([Button.inline(f"查看 {i}", data=f"view_session:{user_id}")])
             
             msg += f"**总计**: {len(sessions)} 个会话\n\n"
             if not encryption_enabled:
@@ -261,7 +268,7 @@ class SessionPlugin(BasePlugin):
             msg += "🗑️ 删除用法：/delsession <索引|用户ID|me>\n"
             msg += "   例如：/delsession 1 或 /delsession 123456789 或 /delsession me"
             
-            await event.reply(msg)
+            await event.reply(msg, buttons=buttons, parse_mode="markdown")
         
         except Exception as e:
             await event.reply(f"❌ 获取列表失败: {str(e)}")
@@ -821,6 +828,36 @@ class SessionPlugin(BasePlugin):
                 message_handler_plugin.mark_user_in_conversation(user_id, False)
                 del self.session_generation_tasks[user_id]
     
+    async def _view_session_callback(self, event):
+        """查看指定用户完整SESSION的回调"""
+        try:
+            # 仅允许所有者查看
+            if event.sender_id != settings.AUTH:
+                await event.answer("无权限", alert=True)
+                return
+            data = event.data.decode("utf-8", errors="ignore")
+            # 解析格式: view_session:<user_id>
+            parts = data.split(":", 1)
+            if len(parts) != 2 or not parts[1].isdigit():
+                await event.answer("参数无效", alert=True)
+                return
+            target_user_id = int(parts[1])
+            session = await session_service.get_session(target_user_id)
+            if not session:
+                await event.answer("该用户未保存SESSION", alert=True)
+                return
+            encryption_enabled = session_service.cipher_suite is not None
+            msg = "🔐 **完整SESSION**\n\n"
+            msg += f"用户ID: `{target_user_id}`\n\n"
+            msg += "||`" + session + "`||\n\n"
+            if not encryption_enabled:
+                msg += "⚠️ 未配置加密密钥，若显示乱码请在 .env 设置 ENCRYPTION_KEY 后重试。\n"
+                msg += "• 删除失效SESSION：/delsession <索引|用户ID|me>\n"
+            await event.client.send_message(event.chat_id, msg, parse_mode="markdown")
+            await event.answer("已发送完整SESSION", alert=False)
+        except Exception as e:
+            await event.answer(f"出错: {str(e)}", alert=True)
+
     async def _handle_text_input(self, event):
         """处理文本输入,用于 SESSION 生成流程"""
         user_id = event.sender_id
