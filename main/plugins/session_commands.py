@@ -327,10 +327,18 @@ class SessionPlugin(BasePlugin):
             # 断开并清理临时客户端，避免连接泄漏
             task = self.session_generation_tasks.get(user_id)
             if task:
-                temp_client = task.get('data', {}).get('client')
+                data = task.get('data', {})
+                temp_client = data.get('client')
                 if temp_client:
                     try:
                         await temp_client.disconnect()
+                    except Exception:
+                        pass
+                # 取消超时任务
+                timeout_task = data.get('timeout_task')
+                if timeout_task:
+                    try:
+                        timeout_task.cancel()
                     except Exception:
                         pass
             
