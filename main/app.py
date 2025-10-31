@@ -74,6 +74,16 @@ async def startup():
     logger.info("🤖 TG-Content-Bot-Pro 启动中...")
     logger.info("=" * 50)
     
+    # 配置验证
+    try:
+        from .utils.config_validator import ensure_config_integrity
+        if not ensure_config_integrity():
+            logger.error("❌ 配置验证失败，应用无法启动")
+            return
+    except Exception as e:
+        logger.error(f"配置验证时出错: {e}", exc_info=True)
+        logger.warning("将继续启动应用，但配置可能存在问题")
+    
     # 初始化客户端
     try:
         await client_manager.initialize_clients()

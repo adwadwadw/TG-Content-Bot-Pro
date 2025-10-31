@@ -55,6 +55,17 @@ class ImprovedTaskQueue:
         self.max_workers = max_workers
         self.queue_max_size = queue_max_size
         
+        # 智能并发控制
+        self._concurrency_limiter = asyncio.Semaphore(max_workers)
+        self._memory_threshold = 0.9  # 内存使用阈值
+        self._cpu_threshold = 0.8     # CPU使用阈值
+        
+        # 自适应控制
+        self._adaptive_timer = None
+        self._current_concurrency = max_workers
+        self._min_concurrency = 1
+        self._max_concurrency = 10
+        
         # 使用asyncio.Queue替代deque，提供更好的线程安全性
         self.pending_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
         self.running_tasks: Dict[str, TaskInfo] = {}
@@ -81,10 +92,16 @@ class ImprovedTaskQueue:
             return
         
         self.is_running = True
+        
+        # 启动工作线程
         self.workers = [
-            asyncio.create_task(self._worker(i))
+            asyncio.create_task(self._worker(i), name=f"task_worker_{i}")
             for i in range(self.max_workers)
         ]
+        
+        # 启动自适应监控
+        self._adaptive_timer = asyncio.create_task(self._adaptive_monitor(), name="adaptive_monitor")
+        
         logger.info(f"任务队列已启动，工作线程数: {self.max_workers}")
     
     async def stop(self, timeout: float = 5.0):
@@ -110,6 +127,73 @@ class ImprovedTaskQueue:
             logger.warning("等待工作线程停止超时")
         
         logger.info("任务队列已停止")
+    
+    async def _adaptive_monitor(self):
+        """自适应监控和调整"""
+        while self.is_running:
+            try:
+                await asyncio.sleep(30)  # 每30秒检查一次
+                
+                # 检查系统资源
+                memory_usage = await self._get_memory_usage()
+                cpu_usage = await self._get_cpu_usage()
+                
+                # 根据资源使用情况调整并发数
+                await self._adjust_concurrency(memory_usage, cpu_usage)
+                
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"自适应监控错误: {e}")
+    
+    async def _get_memory_usage(self) -> float:
+        """获取内存使用率"""
+        try:
+            import psutil
+            return psutil.virtual_memory().percent / 100.0
+        except ImportError:
+            # 如果没有psutil，返回默认值
+            return 0.5
+        except Exception as e:
+            logger.error(f"获取内存使用率失败: {e}")
+            return 0.5
+    
+    async def _get_cpu_usage(self) -> float:
+        """获取CPU使用率"""
+        try:
+            import psutil
+            return psutil.cpu_percent(interval=1) / 100.0
+        except ImportError:
+            # 如果没有psutil，返回默认值
+            return 0.3
+        except Exception as e:
+            logger.error(f"获取CPU使用率失败: {e}")
+            return 0.3
+    
+    async def _adjust_concurrency(self, memory_usage: float, cpu_usage: float):
+        """根据资源使用情况调整并发数"""
+        old_concurrency = self._current_concurrency
+        
+        # 如果资源使用过高，减少并发
+        if memory_usage > self._memory_threshold or cpu_usage > self._cpu_threshold:
+            new_concurrency = max(self._min_concurrency, self._current_concurrency - 1)
+        # 如果资源使用正常，可以适当增加并发
+        elif memory_usage < self._memory_threshold * 0.7 and cpu_usage < self._cpu_threshold * 0.7:
+            new_concurrency = min(self._max_concurrency, self._current_concurrency + 1)
+        else:
+            # 资源使用正常，保持当前并发
+            return
+        
+        if new_concurrency != old_concurrency:
+            await self._update_concurrency(new_concurrency)
+            logger.info(f"并发数已从 {old_concurrency} 调整为 {new_concurrency} "
+                       f"(内存: {memory_usage:.1%}, CPU: {cpu_usage:.1%})")
+    
+    async def _update_concurrency(self, new_concurrency: int):
+        """更新并发限制"""
+        self._current_concurrency = new_concurrency
+        # 创建新的信号量
+        self._concurrency_limiter = asyncio.Semaphore(new_concurrency)
     
     async def _worker(self, worker_id: int):
         """工作线程"""

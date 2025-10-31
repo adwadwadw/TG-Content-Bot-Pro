@@ -66,6 +66,9 @@ class DatabaseManager:
         self.client: Optional[MongoClient] = None
         self.db = None
         self._lock = asyncio.Lock()
+        self._last_health_check = None
+        self._connection_errors = 0
+        self._max_connection_errors = 3
         self._connect()
     
     def _connect(self) -> None:
@@ -82,15 +85,21 @@ class DatabaseManager:
         
         try:
             logger.info("正在连接MongoDB...")
-            self.client = MongoClient(
-                settings.MONGO_DB,
-                serverSelectionTimeoutMS=5000,
-                connectTimeoutMS=5000,
-                maxPoolSize=10,  # 连接池大小
-                minPoolSize=2,   # 最小连接池大小
-                socketTimeoutMS=5000,
-                connect=False    # 延迟连接
-            )
+            # 优化连接池配置
+            pool_config = {
+                'serverSelectionTimeoutMS': 10000,  # 增加到10秒
+                'connectTimeoutMS': 10000,          # 增加到10秒
+                'socketTimeoutMS': 30000,          # 增加到30秒
+                'maxPoolSize': 20,                  # 增大连接池
+                'minPoolSize': 5,                   # 最小连接数
+                'maxIdleTimeMS': 60000,             # 空闲连接超时
+                'waitQueueTimeoutMS': 10000,        # 等待队列超时
+                'retryWrites': True,               # 启用重试写入
+                'retryReads': True,                # 启用重试读取
+                'connect': False                   # 延迟连接
+            }
+            
+            self.client = MongoClient(settings.MONGO_DB, **pool_config)
             # 测试连接
             self.client.admin.command('ping')
             self.db = self.client['tg_content_bot']
@@ -142,16 +151,46 @@ class DatabaseManager:
         """确保数据库连接有效
         
         检查数据库连接状态，如果连接失效则重新连接。
+        实现智能重试和错误计数机制。
         """
         if not self.client:
             self._connect()
+            return
         
         try:
             # 检查连接是否仍然有效
             self.client.admin.command('ping')
+            self._connection_errors = 0  # 重置错误计数
+            self._last_health_check = datetime.now()
         except Exception as e:
-            logger.warning(f"数据库连接失效，重新连接: {e}")
-            self._connect()
+            self._connection_errors += 1
+            logger.warning(f"数据库连接失效 ({self._connection_errors}/{self._max_connection_errors}): {e}")
+            
+            if self._connection_errors >= self._max_connection_errors:
+                logger.error("数据库连接错误次数过多，尝试重新连接")
+                self._connect()
+            else:
+                # 如果是偶发性错误，不立即重新连接
+                logger.warning("数据库连接暂时性错误，继续使用现有连接")
+    
+    def get_connection_stats(self) -> Dict[str, Any]:
+        """获取数据库连接统计信息"""
+        if not self.client:
+            return {"status": "disconnected", "pool_size": 0, "connection_errors": self._connection_errors}
+        
+        try:
+            # 获取连接池信息
+            server_status = self.client.admin.command('serverStatus')
+            connections = server_status.get('connections', {})
+            
+            return {
+                "status": "connected",
+                "pool_size": connections.get('current', 0),
+                "connection_errors": self._connection_errors,
+                "last_health_check": self._last_health_check
+            }
+        except Exception:
+            return {"status": "error", "connection_errors": self._connection_errors}
     
     def is_connected(self) -> bool:
         """检查数据库是否连接
