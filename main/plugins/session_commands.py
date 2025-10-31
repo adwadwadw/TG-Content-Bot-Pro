@@ -606,15 +606,24 @@ class SessionPlugin(BasePlugin):
                     await temp_client.sign_in(data['phone'], code, phone_code_hash)
                 except Exception as sign_in_error:
                     # 检查是否需要密码
-                    if "password" in str(sign_in_error).lower() or "two_factor" in str(sign_in_error).lower():
+                    err_str = str(sign_in_error)
+                    if "password" in err_str.lower() or "two_factor" in err_str.lower():
                         task['step'] = 'password'
                         await event.reply(
                             "🔐 检测到您的账户启用了两步验证\n\n"
                             "请发送您的 **两步验证密码**"
                         )
                         return
+                    # 针对验证码过期的专门处理与引导
+                    if "PHONE_CODE_EXPIRED" in err_str or "phone_code_expired" in err_str.lower():
+                        await event.reply(
+                            "❌ 验证码已过期\n\n"
+                            "请发送 `resend` 重新获取新的验证码，或重新运行 /generatesession\n"
+                            "提示：验证码有效期很短，请尽快输入"
+                        )
+                        return
                     else:
-                        await event.reply(f"❌ 验证码验证失败: {str(sign_in_error)}\n\n请使用 /generatesession 重新开始")
+                        await event.reply(f"❌ 验证码验证失败: {err_str}\n\n请使用 /generatesession 重新开始")
                         await temp_client.disconnect()
                         del self.session_generation_tasks[user_id]
                         return
