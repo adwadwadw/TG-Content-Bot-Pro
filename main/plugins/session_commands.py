@@ -242,6 +242,7 @@ class SessionPlugin(BasePlugin):
                 return
             
             msg = "📋 **已保存的 SESSION 列表**\n\n"
+            encryption_enabled = session_service.cipher_suite is not None
             for i, user in enumerate(sessions, 1):
                 user_id = user.get("user_id")
                 username = user.get("username", "未知")
@@ -252,6 +253,11 @@ class SessionPlugin(BasePlugin):
                 msg += f"   SESSION: {session_preview}\n\n"
             
             msg += f"**总计**: {len(sessions)} 个会话\n\n"
+            if not encryption_enabled:
+                msg += "⚠️ 当前未配置加密密钥，SESSION可能显示为乱码。\n"
+                msg += "   • 在 .env 中设置 ENCRYPTION_KEY 可启用解密显示\n"
+                msg += "   • 查看数据库：直接在 MongoDB 中查看 users/sessions 集合\n"
+                msg += "   • 删除失效SESSION：使用 /delsession <索引|用户ID|me>\n\n"
             msg += "🗑️ 删除用法：/delsession <索引|用户ID|me>\n"
             msg += "   例如：/delsession 1 或 /delsession 123456789 或 /delsession me"
             
