@@ -39,7 +39,7 @@ class SessionPlugin(BasePlugin):
         client_manager.bot.add_event_handler(self._retry_session, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/retry_session"))
         client_manager.bot.add_event_handler(self._handle_text_input, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, func=lambda e: not e.text.startswith('/')))
+            incoming=True, from_users=settings.AUTH, func=lambda e: e.text and not e.text.startswith('/')))
         
         self.logger.info("会话管理插件事件处理器已注册")
     
@@ -61,7 +61,7 @@ class SessionPlugin(BasePlugin):
         client_manager.bot.remove_event_handler(self._retry_session, events.NewMessage(
             incoming=True, from_users=settings.AUTH, pattern="/retry_session"))
         client_manager.bot.remove_event_handler(self._handle_text_input, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, func=lambda e: not e.text.startswith('/')))
+            incoming=True, from_users=settings.AUTH, func=lambda e: e.text and not e.text.startswith('/')))
         
         self.logger.info("会话管理插件事件处理器已移除")
     
@@ -323,6 +323,16 @@ class SessionPlugin(BasePlugin):
             if user_id not in self.session_generation_tasks:
                 await event.reply("❌ 您没有正在进行的 SESSION 生成任务")
                 return
+            
+            # 断开并清理临时客户端，避免连接泄漏
+            task = self.session_generation_tasks.get(user_id)
+            if task:
+                temp_client = task.get('data', {}).get('client')
+                if temp_client:
+                    try:
+                        await temp_client.disconnect()
+                    except Exception:
+                        pass
             
             del self.session_generation_tasks[user_id]
             # 取消标记用户会话状态
@@ -593,7 +603,7 @@ class SessionPlugin(BasePlugin):
                 try:
                     await event.reply("⏳ 正在验证验证码...")
                     phone_code_hash = data.get('phone_code_hash')
-                    await temp_client.sign_in(data['phone'], phone_code_hash, code)
+                    await temp_client.sign_in(data['phone'], code, phone_code_hash)
                 except Exception as sign_in_error:
                     # 检查是否需要密码
                     if "password" in str(sign_in_error).lower() or "two_factor" in str(sign_in_error).lower():
