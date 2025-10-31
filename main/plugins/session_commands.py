@@ -10,6 +10,7 @@ from ..core.clients import client_manager
 from ..config import settings
 from ..services.session_service import session_service
 from ..services.user_service import user_service
+from ..services.permission_service import permission_service
 
 from telethon import events, Button
 
@@ -23,25 +24,25 @@ class SessionPlugin(BasePlugin):
     
     async def on_load(self):
         """插件加载时注册事件处理器"""
-        # 注册命令处理器
+        # 注册命令处理器 - 使用更简单的模式匹配，在handler内进行权限检查
         client_manager.bot.add_event_handler(self._add_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/addsession"))
+            incoming=True, pattern="/addsession"))
         client_manager.bot.add_event_handler(self._delete_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/delsession"))
+            incoming=True, pattern="/delsession"))
         client_manager.bot.add_event_handler(self._list_sessions, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/sessions"))
+            incoming=True, pattern="/sessions"))
         client_manager.bot.add_event_handler(self._view_session_callback, events.CallbackQuery(
             pattern=rb"view_session:\d+"))
         client_manager.bot.add_event_handler(self._my_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/mysession"))
+            incoming=True, pattern="/mysession"))
         client_manager.bot.add_event_handler(self._generate_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/generatesession"))
+            incoming=True, pattern="/generatesession"))
         client_manager.bot.add_event_handler(self._cancel_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/cancelsession"))
+            incoming=True, pattern="/cancelsession"))
         client_manager.bot.add_event_handler(self._retry_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/retry_session"))
+            incoming=True, pattern="/retry_session"))
         client_manager.bot.add_event_handler(self._handle_text_input, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, func=lambda e: e.text and not e.text.startswith('/')))
+            incoming=True, func=lambda e: e.text and not e.text.startswith('/')))
         
         self.logger.info("会话管理插件事件处理器已注册")
     
@@ -111,6 +112,11 @@ class SessionPlugin(BasePlugin):
     async def _add_session(self, event):
         """添加 SESSION 字符串"""
         try:
+            # 权限检查：只允许授权用户使用
+            if not await permission_service.require_authorized(event.sender_id):
+                await event.reply("❌ 您没有权限使用此命令")
+                return
+            
             text = event.text.strip()
             
             # 检查是否是直接跟在命令后面的 SESSION 字符串
@@ -196,6 +202,11 @@ class SessionPlugin(BasePlugin):
     async def _delete_session(self, event):
         """删除 SESSION 字符串（支持 /delsession <user_id|索引|me>）"""
         try:
+            # 权限检查：只允许所有者使用
+            if not await permission_service.require_owner(event.sender_id):
+                await event.reply("❌ 此命令仅限所有者使用")
+                return
+            
             text = event.text.strip()
             parts = text.split(maxsplit=1)
             target_user_id = event.sender_id
@@ -239,6 +250,11 @@ class SessionPlugin(BasePlugin):
     async def _list_sessions(self, event):
         """列出所有 SESSION"""
         try:
+            # 权限检查：只允许所有者使用
+            if not await permission_service.require_owner(event.sender_id):
+                await event.reply("❌ 此命令仅限所有者使用")
+                return
+            
             sessions = await session_service.get_all_sessions()
             
             if not sessions:
@@ -276,6 +292,11 @@ class SessionPlugin(BasePlugin):
     async def _my_session(self, event):
         """查看自己的 SESSION"""
         try:
+            # 权限检查：只允许授权用户使用
+            if not await permission_service.require_authorized(event.sender_id):
+                await event.reply("❌ 您没有权限使用此命令")
+                return
+            
             session = await session_service.get_session(event.sender_id)
             
             if not session:
@@ -307,6 +328,11 @@ class SessionPlugin(BasePlugin):
     async def _generate_session(self, event):
         """在线生成 SESSION 字符串"""
         try:
+            # 权限检查：只允许授权用户使用
+            if not await permission_service.require_authorized(event.sender_id):
+                await event.reply("❌ 您没有权限使用此命令")
+                return
+            
             user_id = event.sender_id
             
             if user_id in self.session_generation_tasks:
@@ -354,6 +380,11 @@ class SessionPlugin(BasePlugin):
     async def _cancel_session(self, event):
         """取消 SESSION 生成"""
         try:
+            # 权限检查：只允许授权用户使用
+            if not await permission_service.require_authorized(event.sender_id):
+                await event.reply("❌ 您没有权限使用此命令")
+                return
+            
             user_id = event.sender_id
             
             if user_id not in self.session_generation_tasks:
@@ -390,6 +421,11 @@ class SessionPlugin(BasePlugin):
     async def _retry_session(self, event):
         """重试 SESSION 启动"""
         try:
+            # 权限检查：只允许授权用户使用
+            if not await permission_service.require_authorized(event.sender_id):
+                await event.reply("❌ 您没有权限使用此命令")
+                return
+            
             user_id = event.sender_id
             
             # 从数据库获取SESSION
@@ -831,8 +867,8 @@ class SessionPlugin(BasePlugin):
     async def _view_session_callback(self, event):
         """查看指定用户完整SESSION的回调"""
         try:
-            # 仅允许所有者查看
-            if event.sender_id != settings.AUTH:
+            # 权限检查：仅允许所有者查看
+            if not await permission_service.require_owner(event.sender_id):
                 await event.answer("无权限", alert=True)
                 return
             data = event.data.decode("utf-8", errors="ignore")

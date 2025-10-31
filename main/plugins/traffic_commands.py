@@ -6,6 +6,7 @@ from ..core.clients import client_manager
 from ..config import settings
 from ..services.traffic_service import traffic_service
 from ..services.user_service import user_service
+from ..services.permission_service import permission_service
 
 from telethon import events
 
@@ -17,19 +18,19 @@ class TrafficPlugin(BasePlugin):
     
     async def on_load(self):
         """插件加载时注册事件处理器"""
-        # 注册命令处理器
+        # 注册命令处理器 - 使用更简单的模式匹配，在handler内进行权限检查
         client_manager.bot.add_event_handler(self._traffic_stats, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/traffic'))
+            incoming=True, pattern='/traffic'))
         client_manager.bot.add_event_handler(self._total_traffic_stats, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/totaltraffic'))
+            incoming=True, pattern='/totaltraffic'))
         client_manager.bot.add_event_handler(self._bot_stats, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/stats'))
+            incoming=True, pattern='/stats'))
         client_manager.bot.add_event_handler(self._download_history, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/history'))
+            incoming=True, pattern='/history'))
         client_manager.bot.add_event_handler(self._set_traffic_limit, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/setlimit'))
+            incoming=True, pattern='/setlimit'))
         client_manager.bot.add_event_handler(self._reset_traffic, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/resettraffic'))
+            incoming=True, pattern='/resettraffic'))
         
         self.logger.info("流量管理插件事件处理器已注册")
     
@@ -53,6 +54,11 @@ class TrafficPlugin(BasePlugin):
     
     async def _traffic_stats(self, event):
         """查看个人流量统计"""
+        # 权限检查：允许所有授权用户查看自己的流量统计
+        if not await permission_service.require_authorized(event.sender_id):
+            await event.reply("❌ 您没有权限使用此命令")
+            return
+        
         user_traffic = await traffic_service.get_user_traffic(event.sender_id)
         
         if not user_traffic:
@@ -92,6 +98,11 @@ class TrafficPlugin(BasePlugin):
     
     async def _total_traffic_stats(self, event):
         """查看总流量统计（仅所有者）"""
+        # 权限检查：只允许所有者使用
+        if not await permission_service.require_owner(event.sender_id):
+            await event.reply("❌ 此命令仅限所有者使用")
+            return
+        
         total = await traffic_service.get_total_traffic()
         limits = await traffic_service.get_traffic_limits()
         
@@ -134,6 +145,11 @@ class TrafficPlugin(BasePlugin):
     async def _set_traffic_limit(self, event):
         """设置流量限制（仅所有者）"""
         try:
+            # 权限检查：只允许所有者使用
+            if not await permission_service.require_owner(event.sender_id):
+                await event.reply("❌ 此命令仅限所有者使用")
+                return
+            
             parts = event.text.split()
             if len(parts) < 3:
                 await event.reply(
@@ -197,6 +213,11 @@ class TrafficPlugin(BasePlugin):
     async def _reset_traffic(self, event):
         """重置流量统计"""
         try:
+            # 权限检查：只允许所有者使用
+            if not await permission_service.require_owner(event.sender_id):
+                await event.reply("❌ 此命令仅限所有者使用")
+                return
+            
             parts = event.text.split()
             if len(parts) < 2:
                 await event.reply(
@@ -239,6 +260,11 @@ class TrafficPlugin(BasePlugin):
     async def _bot_stats(self, event):
         """查看机器人统计信息（仅所有者）"""
         try:
+            # 权限检查：只允许所有者使用
+            if not await permission_service.require_owner(event.sender_id):
+                await event.reply("❌ 此命令仅限所有者使用")
+                return
+            
             # 获取用户统计
             total_users = await user_service.get_total_users()
             
@@ -272,6 +298,11 @@ class TrafficPlugin(BasePlugin):
     async def _download_history(self, event):
         """查看下载历史（仅所有者）"""
         try:
+            # 权限检查：只允许所有者使用
+            if not await permission_service.require_owner(event.sender_id):
+                await event.reply("❌ 此命令仅限所有者使用")
+                return
+            
             # 从数据库获取最近的下载历史
             from ..core.database import db_manager
             history = await db_manager.get_recent_download_history(20)  # 获取最近20条记录
