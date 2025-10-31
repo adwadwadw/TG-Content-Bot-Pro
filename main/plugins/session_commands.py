@@ -190,22 +190,43 @@ class SessionPlugin(BasePlugin):
             await event.reply(f"❌ 添加失败: {str(e)}")
     
     async def _delete_session(self, event):
-        """删除 SESSION 字符串"""
+        """删除 SESSION 字符串（支持 /delsession <user_id|索引|me>）"""
         try:
-            success = await session_service.delete_session(event.sender_id)
+            text = event.text.strip()
+            parts = text.split(maxsplit=1)
+            target_user_id = event.sender_id
+            target_from_index = False
+
+            if len(parts) == 2:
+                arg = parts[1].strip()
+                if arg.lower() in ("me", "self"):
+                    target_user_id = event.sender_id
+                elif arg.isdigit():
+                    # 数字参数：优先按索引解析（1-based），否则按 user_id 解析
+                    idx_or_id = int(arg)
+                    sessions = await session_service.get_all_sessions()
+                    if 1 <= idx_or_id <= len(sessions):
+                        target_user_id = sessions[idx_or_id - 1].get("user_id")
+                        target_from_index = True
+                    else:
+                        target_user_id = idx_or_id
+                else:
+                    await event.reply("❌ 参数无效，请使用 /delsession <索引|用户ID|me>")
+                    return
+
+            success = await session_service.delete_session(target_user_id)
             if success:
-                # 尝试动态刷新 userbot SESSION
-                try:
-                    from ..core.clients import client_manager
-                    # 停止当前userbot
-                    if client_manager.userbot:
-                        await client_manager.userbot.stop()
-                        client_manager.userbot = None
-                        settings.SESSION = None
-                    await event.reply("✅ SESSION 已删除\n\nUserbot 客户端已更新，无需重启机器人")
-                except Exception as refresh_error:
-                    self.logger.error(f"动态刷新 SESSION 失败: {refresh_error}")
-                    await event.reply("✅ SESSION 已删除\n\nUserbot 客户端已更新，无需重启机器人")
+                # 若删除的是自己的 SESSION，则尝试停止当前 userbot
+                if target_user_id == event.sender_id:
+                    try:
+                        from ..core.clients import client_manager
+                        if client_manager.userbot:
+                            await client_manager.userbot.stop()
+                            client_manager.userbot = None
+                            settings.SESSION = None
+                    except Exception as refresh_error:
+                        self.logger.error(f"动态刷新 SESSION 失败: {refresh_error}")
+                await event.reply(f"✅ 已删除用户 {target_user_id} 的 SESSION")
             else:
                 await event.reply("❌ 删除失败或 SESSION 不存在")
         except Exception as e:
@@ -230,7 +251,9 @@ class SessionPlugin(BasePlugin):
                 msg += f"{i}. **用户**: {username} ({user_id})\n"
                 msg += f"   SESSION: {session_preview}\n\n"
             
-            msg += f"**总计**: {len(sessions)} 个会话"
+            msg += f"**总计**: {len(sessions)} 个会话\n\n"
+            msg += "🗑️ 删除用法：/delsession <索引|用户ID|me>\n"
+            msg += "   例如：/delsession 1 或 /delsession 123456789 或 /delsession me"
             
             await event.reply(msg)
         
