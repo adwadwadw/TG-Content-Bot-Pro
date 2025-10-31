@@ -280,6 +280,9 @@ EOF_TEST
     echo "🚀 启动机器人..."
     echo ""
     
+    # 管理日志文件
+    manage_logs
+    
     # 根据运行模式启动
     if [ "$run_mode" = "background" ]; then
         echo "📱 后台运行模式"
@@ -325,6 +328,35 @@ cleanup() {
     echo "🧹 清理临时文件..."
     rm -f /tmp/test_mongo.py
     echo "✅ 清理完成"
+}
+
+# 日志管理函数
+manage_logs() {
+    local logs_dir="logs"
+    local log_file="logs/bot.log"
+    local max_size_mb=50
+    local max_size_bytes=$((max_size_mb * 1024 * 1024))
+    
+    # 创建日志目录
+    mkdir -p "$logs_dir"
+    
+    # 检查日志文件是否存在且超过大小限制
+    if [ -f "$log_file" ]; then
+        local current_size=$(stat -f%z "$log_file" 2>/dev/null || stat -c%s "$log_file" 2>/dev/null || echo 0)
+        
+        if [ "$current_size" -gt "$max_size_bytes" ]; then
+            echo "📊 日志文件过大 (${current_size} bytes)，进行清理..."
+            
+            # 创建日志备份
+            local backup_file="logs/bot_$(date +%Y%m%d_%H%M%S).log"
+            mv "$log_file" "$backup_file"
+            echo "✅ 日志已备份到: $backup_file"
+            
+            # 清理旧的日志文件，只保留最近的5个
+            echo "🧹 清理旧日志文件..."
+            ls -t logs/bot_*.log 2>/dev/null | tail -n +6 | xargs -r rm -f
+        fi
+    fi
 }
 
 # 设置信号处理
