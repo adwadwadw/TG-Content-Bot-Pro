@@ -298,22 +298,24 @@ main() {
     }
     trap cleanup_lock EXIT
     
-    # 检查环境变量
-    if ! check_env_variables; then
-        exit 1
-    fi
-    
-    # 激活虚拟环境（如果存在）
-    if [ -f "venv/bin/activate" ]; then
-        source venv/bin/activate
-        echo "✅ 虚拟环境已激活"
-    else
-        echo "⚠️  未找到虚拟环境，使用系统Python"
-    fi
-    
-    # 测试 MongoDB 连接
-    echo "🔍 测试数据库连接..."
-    cat > /tmp/test_mongo.py << 'EOF_TEST'
+    # 如果是后台模式，尽量降低前台输出并跳过前置检测
+    if [ "$run_mode" != "background" ]; then
+        # 检查环境变量
+        if ! check_env_variables; then
+            exit 1
+        fi
+        
+        # 激活虚拟环境（如果存在）
+        if [ -f "venv/bin/activate" ]; then
+            source venv/bin/activate
+            echo "✅ 虚拟环境已激活"
+        else
+            echo "⚠️  未找到虚拟环境，使用系统Python"
+        fi
+        
+        # 测试 MongoDB 连接
+        echo "🔍 测试数据库连接..."
+        cat > /tmp/test_mongo.py << 'EOF_TEST'
 import sys
 import os
 from pymongo import MongoClient
@@ -340,63 +342,39 @@ except Exception as e:
     sys.exit(1)
 EOF_TEST
     
-    if python /tmp/test_mongo.py 2>&1 | grep -q "SUCCESS"; then
-        echo "✅ 数据库连接成功"
-        rm -f /tmp/test_mongo.py
-    else
-        echo "❌ 数据库连接失败"
-        echo "请检查 MONGO_DB 配置是否正确"
-        rm -f /tmp/test_mongo.py
-        exit 1
+    if [ "$run_mode" != "background" ]; then
+        if python /tmp/test_mongo.py 2>&1 | grep -q "SUCCESS"; then
+            echo "✅ 数据库连接成功"
+            rm -f /tmp/test_mongo.py
+        else
+            echo "❌ 数据库连接失败"
+            echo "请检查 MONGO_DB 配置是否正确"
+            rm -f /tmp/test_mongo.py
+            exit 1
+        fi
     fi
-    
-    echo ""
-    echo "🚀 启动机器人..."
-    echo ""
-    
-    # 管理日志文件
-    manage_logs
     
     # 根据运行模式启动
     if [ "$run_mode" = "background" ]; then
-        echo "📱 后台运行模式"
-        echo "   日志文件: logs/bot.log"
-        echo "   PID文件: logs/bot.pid"
-        echo ""
+        # 后台模式：不输出Python日志到前台，仅最少提示
+        manage_logs
         
-        # 后台运行 - 正确的后台化方法
-        echo "启动后台进程..."
-        
-        # 后台运行Python进程
         if [ -f "venv/bin/activate" ]; then
-            # 使用虚拟环境
             nohup bash -c "cd '$SCRIPT_DIR' && source venv/bin/activate && python3 -m main" > logs/bot.log 2>&1 &
         else
-            # 不使用虚拟环境
             nohup bash -c "cd '$SCRIPT_DIR' && python3 -m main" > logs/bot.log 2>&1 &
         fi
         local pid=$!
-        
-        # 保存PID
         echo "$pid" > logs/bot.pid
-        
-        echo "✅ 机器人已启动 (PID: $pid)"
-        echo "💡 查看日志: tail -f logs/bot.log  # 查看启动日志"
-        echo "💡 查看Python日志: ls -t logs/  # 查看生成的日志文件"
-        echo "💡 检查状态: $0 --status"
-        echo "💡 停止运行: $0 --kill"
+        echo "✅ 已在后台启动 (PID: $pid)。查看日志: ls -t logs/ && tail -f logs/最新文件"
+        exit 0
+    else
+        echo ""
+        echo "🚀 启动机器人..."
         echo ""
         
-        # 等待几秒检查是否启动成功
-        sleep 3
-        if ps -p "$pid" > /dev/null 2>&1; then
-            echo "✅ 启动成功！"
-        else
-            echo "❌ 启动失败，请检查日志文件"
-            rm -f logs/bot.pid
-            exit 1
-        fi
-    else
+        # 管理日志文件
+        manage_logs
         echo "📱 前台运行模式"
         echo "   按 Ctrl+C 停止运行"
         echo ""
@@ -445,6 +423,16 @@ manage_logs() {
 
 # 设置信号处理
 trap cleanup EXIT
+
+# 先处理快捷命令，避免进入主流程
+if [[ "$1" == "--status" || "$1" == "-s" ]]; then
+    check_status
+    exit $?
+fi
+if [[ "$1" == "--kill" || "$1" == "-k" ]]; then
+    stop_bot
+    exit 0
+fi
 
 # 执行主程序
 main "$@"
