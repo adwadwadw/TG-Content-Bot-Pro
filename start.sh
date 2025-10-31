@@ -269,9 +269,26 @@ main() {
         exit 1
     fi
     
+    # 启动前检测GitHub新版本
+    if command -v git >/dev/null 2>&1; then
+        echo "🔍 正在检测GitHub新版本..."
+        if git fetch origin main >/dev/null 2>&1; then
+            LOCAL_REV=$(git rev-parse HEAD 2>/dev/null || echo "")
+            REMOTE_REV=$(git rev-parse origin/main 2>/dev/null || echo "")
+            if [ -n "$LOCAL_REV" ] && [ -n "$REMOTE_REV" ] && [ "$LOCAL_REV" != "$REMOTE_REV" ]; then
+                echo "📢 检测到仓库有新版本，5秒后继续运行程序..."
+                sleep 5
+            else
+                echo "✅ 当前已是最新版本"
+            fi
+        else
+            echo "⚠️ 远程仓库不可用，跳过版本检测"
+        fi
+    fi
+    
     # 创建启动锁定文件
     local lock_file="logs/bot.lock"
-    echo "$"> "$lock_file"
+    echo "$" > "$lock_file"
     
     # 清理函数 - 确保锁定文件被删除
     cleanup_lock() {
