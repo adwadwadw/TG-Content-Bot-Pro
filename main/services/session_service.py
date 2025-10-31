@@ -25,59 +25,21 @@ class SessionService:
         self._init_encryption()
     
     def _init_encryption(self):
-        """初始化加密系统"""
-        try:
-            if settings.ENCRYPTION_KEY:
-                # 使用提供的密钥
-                key = settings.ENCRYPTION_KEY.encode()
-                if len(key) != 32:
-                    # 如果不是32字节，使用PBKDF2派生密钥
-                    salt = b'tg_content_bot_salt_16bytes'  # 固定盐值
-                    kdf = PBKDF2HMAC(
-                        algorithm=hashes.SHA256(),
-                        length=32,
-                        salt=salt,
-                        iterations=100000,
-                    )
-                    key = base64.urlsafe_b64encode(kdf.derive(key))
-                self.cipher_suite = Fernet(key)
-                logger.info("会话加密已启用")
-            else:
-                logger.warning("会话加密未配置，SESSION将明文存储")
-        except Exception as e:
-            logger.error(f"初始化加密系统失败: {e}")
-            self.cipher_suite = None
+        """禁用加密，明文存储SESSION"""
+        self.cipher_suite = None
+        logger.info("会话加密已禁用，SESSION将以明文保存到数据库")
     
     def _generate_encryption_key(self) -> str:
         """生成新的加密密钥"""
         return Fernet.generate_key().decode()
     
     def _encrypt_session(self, session_string: str) -> Optional[str]:
-        """加密SESSION字符串"""
-        if not self.cipher_suite:
-            return session_string  # 未启用加密时直接返回
-        
-        try:
-            encrypted_session = self.cipher_suite.encrypt(session_string.encode())
-            return encrypted_session.decode()
-        except Exception as e:
-            logger.error(f"加密SESSION失败: {e}")
-            return None
+        """加密禁用：直接返回原始SESSION"""
+        return session_string
     
     def _decrypt_session(self, encrypted_session: str) -> Optional[str]:
-        """解密SESSION字符串"""
-        if not self.cipher_suite:
-            return encrypted_session  # 未启用加密时直接返回
-        
-        try:
-            decrypted_session = self.cipher_suite.decrypt(encrypted_session.encode())
-            return decrypted_session.decode()
-        except InvalidToken:
-            logger.error("SESSION解密失败：无效令牌")
-            return None
-        except Exception as e:
-            logger.error(f"解密SESSION失败: {e}")
-            return None
+        """解密禁用：直接返回输入"""
+        return encrypted_session
     
     async def save_session(self, user_id: int, session_string: str, session_name: str = "default") -> bool:
         """保存SESSION字符串"""
@@ -155,8 +117,8 @@ class SessionService:
             # 解密所有SESSION
             for session in sessions:
                 if session.get("session_string"):
-                    decrypted_session = self._decrypt_session(session["session_string"])
-                    session["session_string"] = decrypted_session
+                    # 明文存储，无需解密
+                    session["session_string"] = session["session_string"]
             
             return sessions
         except Exception as e:
@@ -232,7 +194,7 @@ class SessionService:
                 "user_id": user_id,
                 "has_session": user.get("session_string") is not None,
                 "session_updated": user.get("session_updated"),
-                "is_encrypted": self.cipher_suite is not None
+                "is_encrypted": False
             }
         except Exception as e:
             logger.error(f"获取SESSION信息时数据库错误: {e}")
