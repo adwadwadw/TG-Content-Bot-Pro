@@ -125,6 +125,9 @@ show_version() {
 # 检查进程状态
 check_status() {
     local pid_file="logs/bot.pid"
+    local lock_file="logs/bot.lock"
+    
+    # 检查PID文件是否存在
     if [ -f "$pid_file" ]; then
         local pid=$(cat "$pid_file")
         if ps -p "$pid" > /dev/null 2>&1; then
@@ -133,17 +136,51 @@ check_status() {
         else
             echo "❌ PID文件存在但进程未运行，清理PID文件"
             rm -f "$pid_file"
+            if [ -f "$lock_file" ]; then
+                rm -f "$lock_file"
+            fi
             return 1
         fi
-    else
-        echo "❌ 机器人未运行"
-        return 1
     fi
+    
+    # 检查锁定文件是否存在
+    if [ -f "$lock_file" ]; then
+        local lock_pid=$(cat "$lock_file" 2>/dev/null || echo "")
+        if [ -n "$lock_pid" ] && ps -p "$lock_pid" > /dev/null 2>&1; then
+            echo "✅ 机器人正在运行 (锁定PID: $lock_pid)"
+            return 0
+        else
+            echo "❌ 锁定文件存在但进程未运行，清理锁定文件"
+            rm -f "$lock_file"
+            return 1
+        fi
+    fi
+    
+    # 检查是否有Python进程在运行
+    local python_pids=$(pgrep -f "python.*main" 2>/dev/null || echo "")
+    if [ -n "$python_pids" ]; then
+        for pid in $python_pids; do
+            # 检查进程是否在当前目录下运行
+            local proc_cwd=$(readlink /proc/$pid/cwd 2>/dev/null || echo "")
+            if [ "$proc_cwd" = "$SCRIPT_DIR" ] || [ "$proc_cwd" = "$(realpath $SCRIPT_DIR)" ]; then
+                echo "✅ 机器人正在运行 (PID: $pid)"
+                # 更新PID文件
+                echo "$pid" > "$pid_file"
+                return 0
+            fi
+        done
+    fi
+    
+    echo "❌ 机器人未运行"
+    return 1
 }
 
 # 停止进程
 stop_bot() {
     local pid_file="logs/bot.pid"
+    local lock_file="logs/bot.lock"
+    
+    # 首先停止当前进程
     if [ -f "$pid_file" ]; then
         local pid=$(cat "$pid_file")
         if ps -p "$pid" > /dev/null 2>&1; then
@@ -162,13 +199,21 @@ stop_bot() {
             fi
             
             rm -f "$pid_file"
+            rm -f "$lock_file"
             echo "✅ 机器人已停止"
         else
             echo "⚠️  PID文件存在但进程未运行，清理PID文件"
             rm -f "$pid_file"
+            rm -f "$lock_file"
         fi
     else
         echo "⚠️  未找到运行中的机器人进程"
+    fi
+    
+    # 清理任何残留的锁定文件
+    if [ -f "$lock_file" ]; then
+        rm -f "$lock_file"
+        echo "🧹 清理残留锁定文件"
     fi
 }
 
@@ -223,6 +268,18 @@ main() {
         echo "如果需要重启，请先使用: $0 --kill"
         exit 1
     fi
+    
+    # 创建启动锁定文件
+    local lock_file="logs/bot.lock"
+    echo "$"> "$lock_file"
+    
+    # 清理函数 - 确保锁定文件被删除
+    cleanup_lock() {
+        if [ -f "$lock_file" ]; then
+            rm -f "$lock_file"
+        fi
+    }
+    trap cleanup_lock EXIT
     
     # 检查环境变量
     if ! check_env_variables; then
@@ -290,15 +347,25 @@ EOF_TEST
         echo "   PID文件: logs/bot.pid"
         echo ""
         
-        # 后台运行
-        nohup python3 -m main > logs/bot.log 2>&1 &
+        # 后台运行 - 正确的后台化方法
+        echo "启动后台进程..."
+        
+        # 后台运行Python进程
+        if [ -f "venv/bin/activate" ]; then
+            # 使用虚拟环境
+            nohup bash -c "cd '$SCRIPT_DIR' && source venv/bin/activate && python3 -m main" > logs/bot.log 2>&1 &
+        else
+            # 不使用虚拟环境
+            nohup bash -c "cd '$SCRIPT_DIR' && python3 -m main" > logs/bot.log 2>&1 &
+        fi
         local pid=$!
         
         # 保存PID
         echo "$pid" > logs/bot.pid
         
         echo "✅ 机器人已启动 (PID: $pid)"
-        echo "💡 查看日志: tail -f logs/bot.log"
+        echo "💡 查看日志: tail -f logs/bot.log  # 查看启动日志"
+        echo "💡 查看Python日志: ls -t logs/  # 查看生成的日志文件"
         echo "💡 检查状态: $0 --status"
         echo "💡 停止运行: $0 --kill"
         echo ""
