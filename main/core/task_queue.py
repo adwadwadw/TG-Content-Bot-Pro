@@ -64,7 +64,13 @@ class ImprovedTaskQueue:
         self._adaptive_timer = None
         self._current_concurrency = max_workers
         self._min_concurrency = 1
-        self._max_concurrency = 10
+        # 允许通过环境变量或配置调整最大并发
+        try:
+            from ..config import settings
+            self._max_concurrency = max(2, int(getattr(settings, 'MAX_WORKERS', self._max_concurrency)))
+        except Exception:
+            self._max_concurrency = 10
+        self._upscale_enable = True  # 允许在低负载时上调并发
         
         # 使用asyncio.Queue替代deque，提供更好的线程安全性
         self.pending_queue: asyncio.PriorityQueue = asyncio.PriorityQueue()
@@ -173,21 +179,28 @@ class ImprovedTaskQueue:
     async def _adjust_concurrency(self, memory_usage: float, cpu_usage: float):
         """根据资源使用情况调整并发数"""
         old_concurrency = self._current_concurrency
+
+        # 当前队列与运行任务情况
+        pending_size = self.pending_queue.qsize()
+        running_count = len(self.running_tasks)
         
-        # 如果资源使用过高，减少并发
+        # 如果资源使用过高，减少并发（与任务数量无关）
         if memory_usage > self._memory_threshold or cpu_usage > self._cpu_threshold:
             new_concurrency = max(self._min_concurrency, self._current_concurrency - 1)
-        # 如果资源使用正常，可以适当增加并发
-        elif memory_usage < self._memory_threshold * 0.7 and cpu_usage < self._cpu_threshold * 0.7:
+        # 仅当存在待处理或运行中的任务，且负载较低时才上调并发
+        elif (pending_size > 0 or running_count > 0) and self._upscale_enable and \
+             memory_usage < self._memory_threshold * 0.7 and cpu_usage < self._cpu_threshold * 0.7:
             new_concurrency = min(self._max_concurrency, self._current_concurrency + 1)
         else:
-            # 资源使用正常，保持当前并发
+            # 保持当前并发
             return
         
         if new_concurrency != old_concurrency:
             await self._update_concurrency(new_concurrency)
-            logger.info(f"并发数已从 {old_concurrency} 调整为 {new_concurrency} "
-                       f"(内存: {memory_usage:.1%}, CPU: {cpu_usage:.1%})")
+            logger.info(
+                f"并发数已从 {old_concurrency} 调整为 {new_concurrency} "
+                f"(内存: {memory_usage:.1%}, CPU: {cpu_usage:.1%}, pending: {pending_size}, running: {running_count})"
+            )
     
     async def _update_concurrency(self, new_concurrency: int):
         """更新并发限制"""
