@@ -55,7 +55,7 @@ class Settings:
         self.ENCRYPTION_KEY: Optional[str] = self._get_config("ENCRYPTION_KEY", default=None, cast=str)
         
         # 性能配置
-        self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=3, cast=int)
+        self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=2, cast=int)
         self.CHUNK_SIZE: int = self._get_config("CHUNK_SIZE", default=1024*1024, cast=int)  # 1MB
         
         # 流量限制配置

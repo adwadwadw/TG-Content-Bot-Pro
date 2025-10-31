@@ -394,7 +394,7 @@ class ImprovedTaskQueue:
 
 
 # 全局任务队列实例
-task_queue = ImprovedTaskQueue(max_workers=3)
+task_queue = ImprovedTaskQueue(max_workers=2)
 
 
 async def get_task_queue() -> ImprovedTaskQueue:
