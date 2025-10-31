@@ -15,8 +15,7 @@ try:
         env_vars = [
             'API_ID', 'API_HASH', 'BOT_TOKEN', 'AUTH', 'MONGO_DB',
             'FORCESUB', 'SESSION', 'TELEGRAM_PROXY_SCHEME', 
-            'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT',
-            'ENCRYPTION_KEY'
+            'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT'
         ]
         
         for key in env_vars:
