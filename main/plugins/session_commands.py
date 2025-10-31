@@ -405,6 +405,38 @@ class SessionPlugin(BasePlugin):
         except Exception as e:
             await event.reply(f"❌ 重试失败: {str(e)}")
     
+    async def _code_timeout_watch(self, user_id):
+        """验证码输入超时自动退出"""
+        try:
+            await asyncio.sleep(self.CODE_TIMEOUT)
+            task = self.session_generation_tasks.get(user_id)
+            if not task or task.get('step') != 'code':
+                return
+            data = task.get('data', {})
+            chat_id = data.get('chat_id')
+            temp_client = data.get('client')
+            if temp_client:
+                try:
+                    await temp_client.disconnect()
+                except Exception:
+                    pass
+            # 取消会话标记
+            from .message_handler import message_handler_plugin
+            message_handler_plugin.mark_user_in_conversation(user_id, False)
+            # 清理任务
+            try:
+                del self.session_generation_tasks[user_id]
+            except Exception:
+                pass
+            # 通知用户
+            try:
+                await client_manager.bot.send_message(chat_id, "❌ 验证码输入超时(超过3分钟)，已自动退出生成流程。\n\n请使用 /generatesession 重新开始")
+            except Exception:
+                pass
+        except Exception:
+            # 静默忽略监控错误
+            pass
+
     async def _handle_session_generation_input(self, event):
         """处理 SESSION 生成过程中的用户输入"""
         user_id = event.sender_id
