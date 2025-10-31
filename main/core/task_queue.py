@@ -63,9 +63,9 @@ class ImprovedTaskQueue:
         # 自适应控制
         self._adaptive_timer = None
         self._current_concurrency = max_workers
-        self._min_concurrency = 1
-        # 允许通过环境变量或配置调整最大并发
-        self._max_concurrency = 10
+        from ..config import settings
+        self._min_concurrency = max(1, int(getattr(settings, 'MIN_CONCURRENCY', 1)))
+        self._max_concurrency = max(self._min_concurrency, int(getattr(settings, 'MAX_CONCURRENCY', 10)))
         self._upscale_enable = True  # 允许在低负载时上调并发
         
         # 使用asyncio.Queue替代deque，提供更好的线程安全性

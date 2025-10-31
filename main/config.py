@@ -56,6 +56,8 @@ class Settings:
         
         # 性能配置
         self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=2, cast=int)
+        self.MIN_CONCURRENCY: int = self._get_config("MIN_CONCURRENCY", default=1, cast=int)
+        self.MAX_CONCURRENCY: int = self._get_config("MAX_CONCURRENCY", default=10, cast=int)
         self.CHUNK_SIZE: int = self._get_config("CHUNK_SIZE", default=1024*1024, cast=int)  # 1MB
         
         # 流量限制配置
