@@ -166,6 +166,14 @@ check_dependencies() {
     else
         print_success "ffmpeg"
     fi
+
+    # 检查 screen
+    if ! command_exists screen; then
+        print_warning "未找到 screen（后台运行建议）"
+        missing_packages+=("screen")
+    else
+        print_success "screen"
+    fi
     
     # 如果有缺少的包，提示安装
     if [ ${#missing_packages[@]} -gt 0 ]; then
@@ -911,9 +919,12 @@ main() {
     echo "  cd $INSTALL_DIR"
     echo "  ./start.sh"
     echo ""
-    print_info "后台运行（推荐）:"
+    print_info "后台运行（推荐，使用 screen）:"
     echo "  cd $INSTALL_DIR"
-    echo "  nohup ./start.sh > logs/bot.log 2>&1 &"
+    echo "  screen -dmS tg-bot bash -c 'mkdir -p logs; nohup ./start.sh > logs/bot.log 2>&1'"
+    echo "  # 进入会话查看： screen -r tg-bot"
+    echo "  # 从会话脱离： Ctrl+A D"
+    echo "  # 终止会话： screen -S tg-bot -X quit"
     echo ""
     print_info "查看日志:"
     echo "  cd $INSTALL_DIR"
