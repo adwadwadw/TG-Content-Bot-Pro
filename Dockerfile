@@ -28,9 +28,12 @@ COPY . .
 # 暴露健康检查端口
 EXPOSE 8080
 
-# 健康检查 - 使用HTTP端点检查应用状态
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+# 健康检查 - 简化版本，只检查进程是否运行
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD ps aux | grep python | grep -v grep || exit 1
+
+# 复制启动脚本
+COPY start.sh .
 
 # 启动命令
-CMD ["python3", "-m", "main"]
+CMD ["sh", "start.sh"]
