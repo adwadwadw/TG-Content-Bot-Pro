@@ -85,3 +85,4 @@ tmp/
 # Project specific
 .qoder/
 .db_initialized
+.codebuddy/
