@@ -39,13 +39,13 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ghcr.io/${{ github.repository | lower }}
+        images: ghcr.io/${{ github.repository }}
         tags: |
           type=ref,event=branch
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
-          type=sha,prefix={{branch}}-
+          type=sha,prefix=
           type=raw,value=latest,enable=${{ github.ref == format('refs/heads/{0}', 'main') }}
     
     - name: Build and push multi-arch Docker image
