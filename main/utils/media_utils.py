@@ -51,7 +51,7 @@ async def screenshot(video: str, duration: int, sender: int) -> Optional[str]:
         else:
             return None
     except Exception as e:
-        print(f"生成缩略图失败: {e}")
+        logger.warning(f"生成缩略图失败: {e}")
         return None
 
 
@@ -87,8 +87,8 @@ async def progress_for_pyrogram(current: int, total: int, client, ud_type: str, 
                     tmp
                 )
             )
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"生成缩略图失败: {e}")
 
 
 def humanbytes(size: int) -> str:
@@ -147,5 +147,5 @@ async def join_chat(client, invite_link: str) -> str:
     except FloodWait as e:
         return f"❌ 请求过多，请等待 {e.value} 秒后重试"
     except Exception as e:
-        print(f"加入频道时出错: {e}")
+        logger.warning(f"加入频道时出错: {e}")
         return "❌ 无法加入，请尝试手动加入"

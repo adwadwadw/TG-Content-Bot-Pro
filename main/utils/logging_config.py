@@ -29,8 +29,8 @@ def setup_logging():
                 index = int(index_str)
                 if index > max_index:
                     max_index = index
-            except:
-                pass
+            except (ValueError, IndexError) as e:
+                logger.debug(f"解析日志文件名失败: {filename}, 错误: {e}")
         restart_index = max_index + 1
     else:
         restart_index = 1

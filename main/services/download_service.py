@@ -39,6 +39,111 @@ class DownloadService:
         self.db: DatabaseManager = db_manager
         self.traffic: TrafficService = traffic_service
     
+    def _parse_message_link(self, msg_link: str, offset: int = 0) -> tuple:
+        """解析消息链接
+        
+        Args:
+            msg_link: 消息链接
+            offset: 消息ID偏移量
+            
+        Returns:
+            tuple: (chat_id, message_id, is_private_chat)
+        """
+        # 处理链接中的参数
+        if "?single" in msg_link:
+            msg_link = msg_link.split("?single")[0]
+        
+        msg_id = int(msg_link.split("/")[-1]) + offset
+        
+        if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
+            if 't.me/b/' in msg_link:
+                chat = str(msg_link.split("/")[-2])
+                is_private = True
+            else:
+                chat = int('-100' + str(msg_link.split("/")[-2]))
+                is_private = True
+        else:
+            chat = msg_link.split("t.me")[1].split("/")[1]
+            is_private = False
+            
+        return chat, msg_id, is_private
+
+    async def _check_userbot_availability(self, userbot: Client, client: Client, 
+                                         sender: int, edit_id: int) -> bool:
+        """检查userbot是否可用
+        
+        Args:
+            userbot: Pyrogram用户客户端
+            client: Pyrogram机器人客户端
+            sender: 发送者用户ID
+            edit_id: 编辑消息ID
+            
+        Returns:
+            bool: userbot是否可用
+        """
+        if userbot is None:
+            if edit_id > 0:
+                await client.edit_message_text(
+                    sender, edit_id, 
+                    "❌ 未配置 SESSION，无法访问受限内容\n\n使用 /addsession 添加 SESSION"
+                )
+            return False
+        return True
+
+    async def _handle_text_message(self, msg, client: Client, sender: int, 
+                                  edit_id: int, edit) -> bool:
+        """处理文本消息
+        
+        Args:
+            msg: 消息对象
+            client: Pyrogram客户端
+            sender: 发送者用户ID
+            edit_id: 编辑消息ID
+            edit: 编辑消息对象
+            
+        Returns:
+            bool: 处理是否成功
+        """
+        if msg.text:
+            if edit_id > 0:
+                edit = await client.edit_message_text(sender, edit_id, "克隆中...")
+            await client.send_message(sender, msg.text, parse_mode="markdown")
+            if edit_id > 0 and edit:
+                await edit.delete()
+            return True
+        else:
+            if edit_id > 0:
+                await client.edit_message_text(sender, edit_id, "❌ 消息为空")
+            return False
+
+    async def _check_traffic_limit(self, sender: int, file_size: int, 
+                                  client: Client, edit_id: int, 
+                                  msg_link: str, msg_id: int, chat: str) -> bool:
+        """检查流量限制
+        
+        Args:
+            sender: 发送者用户ID
+            file_size: 文件大小
+            client: Pyrogram客户端
+            edit_id: 编辑消息ID
+            msg_link: 消息链接
+            msg_id: 消息ID
+            chat: 聊天ID
+            
+        Returns:
+            bool: 是否允许下载
+        """
+        can_download, limit_msg = await self.traffic.check_traffic_limit(sender, file_size)
+        if not can_download:
+            if edit_id > 0:
+                await client.edit_message_text(
+                    sender, edit_id, 
+                    f"❌ {limit_msg}\n\n使用 /traffic 查看流量使用情况"
+                )
+            await self.db.add_download(sender, msg_link, msg_id, str(chat), "限制", file_size, "failed")
+            return False
+        return True
+
     @handle_errors(default_return=False)
     async def download_message(self, userbot: Client, client: Client, telethon_bot: TelegramClient, 
                               sender: int, edit_id: int, msg_link: str, offset: int = 0) -> bool:
@@ -57,28 +162,17 @@ class DownloadService:
             bool: 下载是否成功
         """
         # 检查 userbot 是否可用
-        if userbot is None:
-            if edit_id > 0:
-                await client.edit_message_text(sender, edit_id, "❌ 未配置 SESSION，无法访问受限内容\n\n使用 /addsession 添加 SESSION")
+        if not await self._check_userbot_availability(userbot, client, sender, edit_id):
             return False
         
         edit = ""
-        chat = ""
         round_message = False
         
-        # 处理链接中的参数
-        if "?single" in msg_link:
-            msg_link = msg_link.split("?single")[0]
-        
-        msg_id = int(msg_link.split("/")[-1]) + offset
+        # 解析消息链接
+        chat, msg_id, is_private = self._parse_message_link(msg_link, offset)
         height, width, duration, thumb_path = 90, 90, 0, None
         
-        if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
-            if 't.me/b/' in msg_link:
-                chat = str(msg_link.split("/")[-2])
-            else:
-                chat = int('-100' + str(msg_link.split("/")[-2]))
-            
+        if is_private:
             file = ""
             try:
                 msg = await userbot.get_messages(chat, msg_id)
@@ -93,17 +187,7 @@ class DownloadService:
                         return True
                 
                 if not msg.media:
-                    if msg.text:
-                        if edit_id > 0:
-                            edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-                        await client.send_message(sender, msg.text, parse_mode="markdown")
-                        if edit_id > 0 and edit:
-                            await edit.delete()
-                        return True
-                    else:
-                        if edit_id > 0:
-                            await client.edit_message_text(sender, edit_id, "❌ 消息为空")
-                        return False
+                    return await self._handle_text_message(msg, client, sender, edit_id, edit)
                 
                 if edit_id > 0:
                     edit = await client.edit_message_text(sender, edit_id, "尝试下载...")
@@ -112,11 +196,8 @@ class DownloadService:
                 file_size = self._get_file_size(msg)
                 
                 # 检查流量限制
-                can_download, limit_msg = await self.traffic.check_traffic_limit(sender, file_size)
-                if not can_download:
-                    if edit_id > 0:
-                        await client.edit_message_text(sender, edit_id, f"❌ {limit_msg}\n\n使用 /traffic 查看流量使用情况")
-                    await self.db.add_download(sender, msg_link, msg_id, str(chat), "限制", file_size, "failed")
+                if not await self._check_traffic_limit(sender, file_size, client, edit_id, 
+                                                      msg_link, msg_id, chat):
                     return False
                 
                 file = await userbot.download_media(

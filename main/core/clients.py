@@ -607,8 +607,8 @@ class ClientManager:
             if self.userbot:
                 try:
                     await self.userbot.stop()
-                except:
-                    pass
+                except Exception as e:
+                    logger.warning(f"停止userbot失败: {e}")
             
             # 更新配置
             settings.SESSION = corrected_session
