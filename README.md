@@ -23,32 +23,13 @@
 
 ## 🚀 快速开始
 
-### 一键安装（推荐）
+### Docker部署（推荐）
 
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/liwoyuandiane/TG-Content-Bot-Pro/main/install.sh)
-```
+请参考下面的Docker部署部分进行安装。
 
-**安装过程**：
-1. 自动检测系统环境
-2. 自动安装缺少的依赖（python3, pip, ffmpeg, git 等）
-3. 克隆项目代码
-4. 创建虚拟环境并安装依赖
-5. 提示用户配置环境变量
-6. 测试 MongoDB 连接
-7. 创建启动脚本
+### 手动部署
 
-### 一键卸载
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/liwoyuandiane/TG-Content-Bot-Pro/main/install.sh) uninstall
-```
-
-**卸载过程**：
-1. 停止运行中的机器人进程
-2. 删除项目目录及所有相关文件
-3. 清理系统服务和 cron 任务
-4. 保留 MongoDB 数据库（需手动清理）
+请参考下面的手动部署部分进行安装。
 
 **安装完成后**：
 ```bash
@@ -67,11 +48,11 @@ cd ~/TG-Content-Bot-Pro
 | BOT_TOKEN | 机器人Token | [@BotFather](https://t.me/BotFather) | ✅ |
 | AUTH | 授权用户ID | [@userinfobot](https://t.me/userinfobot) | ✅ |
 | MONGO_DB | MongoDB连接字符串 | [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) | ✅ |
-| SESSION | Pyrogram会话字符串 | 运行`python3 get_session.py`生成 | ❌ |
+| SESSION | Pyrogram会话字符串 | 手动生成或使用Telegram应用生成 | ❌ |
 | FORCESUB | 强制订阅频道 | 频道用户名（不带@） | ❌ |
-| TELEGRAM_PROXY_SCHEME | Telegram代理协议 | [SOCKS5_PROXY_SOLUTION.md](SOCKS5_PROXY_SOLUTION.md) | ❌ |
-| TELEGRAM_PROXY_HOST | Telegram代理主机 | [SOCKS5_PROXY_SOLUTION.md](SOCKS5_PROXY_SOLUTION.md) | ❌ |
-| TELEGRAM_PROXY_PORT | Telegram代理端口 | [SOCKS5_PROXY_SOLUTION.md](SOCKS5_PROXY_SOLUTION.md) | ❌ |
+| TELEGRAM_PROXY_SCHEME | Telegram代理协议 | socks5或http | ❌ |
+| TELEGRAM_PROXY_HOST | Telegram代理主机 | 代理服务器地址 | ❌ |
+| TELEGRAM_PROXY_PORT | Telegram代理端口 | 代理服务器端口 | ❌ |
 | TELEGRAM_PROXY_USERNAME | Telegram代理用户名 | 代理认证用户名 | ❌ |
 | TELEGRAM_PROXY_PASSWORD | Telegram代理密码 | 代理认证密码 | ❌ |
 
@@ -181,16 +162,13 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-### 测试代理配置
+### 代理配置验证
 
-项目包含一个代理测试脚本，可以帮助您验证代理配置是否正确：
+您可以通过启动机器人来验证代理配置是否正确：
 
 ```bash
-# 运行代理测试
-python3 test_proxy.py
-
-# 或者使用启动脚本测试代理
-TEST_PROXY=1 ./start.sh
+# 启动机器人测试代理配置
+./start.sh
 ```
 
 ### 手动部署
@@ -246,9 +224,9 @@ python3 -m main
    TELEGRAM_API_PROXY_URL=https://your-worker.your-account.workers.dev
    ```
    
-   详细配置说明请参考 [CLOUDFLARE-WORKER-DEPLOY.md](CLOUDFLARE-WORKER-DEPLOY.md)。
+   详细配置说明请参考项目文档。
 
-详细配置说明请参考 [PROXY_CONFIGURATION.md](PROXY_CONFIGURATION.md)。
+详细配置说明请参考项目文档。
 
 ---
 
