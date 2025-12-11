@@ -77,6 +77,96 @@ cd ~/TG-Content-Bot-Pro
 
 ---
 
+## 🌿 分支策略（GitHub Actions自动构建）
+
+本项目采用双分支策略，实现自动构建与快速部署的分离：
+
+### 分支说明
+
+#### main分支（开发分支）
+- **用途**：代码开发和镜像构建
+- **Dockerfile**：完整的构建流程（从python:3.11-slim开始）
+- **GitHub Actions**：自动构建并推送到GitHub Container Registry
+
+#### pull分支（部署分支）
+- **用途**：快速部署，无需重新构建
+- **Dockerfile**：直接使用构建好的镜像（FROM ghcr.io/用户名/TG-Content-Bot-Pro:latest）
+
+### 复刻项目后的分支设置
+
+如果你是复刻（fork）了这个项目，需要按照以下步骤设置pull分支：
+
+```bash
+# 1. 克隆你的复刻仓库
+git clone https://github.com/你的用户名/TG-Content-Bot-Pro.git
+cd TG-Content-Bot-Pro
+
+# 2. 创建并切换到pull分支
+git checkout -b pull
+
+# 3. 修改Dockerfile，使用你自己的镜像地址
+# 编辑Dockerfile，将用户名改为你的GitHub用户名
+# FROM ghcr.io/你的用户名/TG-Content-Bot-Pro:latest
+
+# 4. 提交更改到pull分支
+git add Dockerfile
+git commit -m "创建pull分支用于快速部署"
+git push origin pull
+
+# 5. 切换回main分支继续开发
+git checkout main
+```
+
+### GitHub Actions配置
+
+1. **启用Actions**：在GitHub仓库设置中启用Actions
+2. **设置Secrets**（如果需要）：
+   - 在仓库的Settings → Secrets and variables → Actions
+   - 添加DOCKERHUB_TOKEN等（如果需要推送到Docker Hub）
+
+### 工作流程
+
+1. **开发阶段（main分支）**：
+   ```bash
+   git checkout main
+   # 进行代码修改
+   git add .
+   git commit -m "功能更新"
+   git push origin main
+   # GitHub Actions会自动构建镜像
+   ```
+
+2. **部署阶段（pull分支）**：
+   ```bash
+   git checkout pull
+   docker-compose up -d  # 直接使用预构建的镜像，部署更快
+   ```
+
+3. **分支同步（当main分支更新时）**：
+   ```bash
+   git checkout pull
+   git merge main --no-commit
+   git checkout HEAD -- Dockerfile  # 保留pull分支的Dockerfile
+   git commit -m "合并main分支更新"
+   git push origin pull
+   ```
+
+### 镜像地址格式
+
+构建后的镜像地址为：
+```
+ghcr.io/你的用户名/TG-Content-Bot-Pro:latest
+```
+
+### 优势
+
+- 🚀 **快速部署**：pull分支直接使用预构建镜像，无需重新构建
+- 🔧 **开发独立**：main分支专注于开发，不受部署影响
+- 📦 **版本管理**：GitHub Actions自动管理镜像版本和标签
+- 🔒 **安全可靠**：使用GitHub官方容器注册表
+
+---
+
 ## 🛠️ 部署方式
 
 ### Docker部署（推荐）
