@@ -87,42 +87,22 @@ cd ~/TG-Content-Bot-Pro
 - **用途**：代码开发和镜像构建
 - **Dockerfile**：完整的构建流程（从python:3.11-slim开始）
 - **GitHub Actions**：自动构建并推送到GitHub Container Registry
+- **文件结构**：包含完整的源代码和构建配置
 
 #### pull分支（部署分支）
-- **用途**：快速部署，无需重新构建
-- **Dockerfile**：直接使用构建好的镜像（FROM ghcr.io/用户名/TG-Content-Bot-Pro:latest）
+- **用途**：极简部署，无需重新构建
+- **Dockerfile**：直接使用构建好的镜像（FROM ghcr.io/liwoyuandiane/tg-content-bot-pro:main）
+- **文件结构**：仅包含部署所需的最少文件（4个文件）
+- **极简设计**：Dockerfile只有一行，专注于快速部署
 
-### 复刻项目后的分支设置
+### GitHub Actions多架构构建
 
-如果你是复刻（fork）了这个项目，需要按照以下步骤设置pull分支：
-
-```bash
-# 1. 克隆你的复刻仓库
-git clone https://github.com/你的用户名/TG-Content-Bot-Pro.git
-cd TG-Content-Bot-Pro
-
-# 2. 创建并切换到pull分支
-git checkout -b pull
-
-# 3. 修改Dockerfile，使用你自己的镜像地址
-# 编辑Dockerfile，将用户名改为你的GitHub用户名
-# FROM ghcr.io/你的用户名/TG-Content-Bot-Pro:latest
-
-# 4. 提交更改到pull分支
-git add Dockerfile
-git commit -m "创建pull分支用于快速部署"
-git push origin pull
-
-# 5. 切换回main分支继续开发
-git checkout main
-```
-
-### GitHub Actions配置
-
-1. **启用Actions**：在GitHub仓库设置中启用Actions
-2. **设置Secrets**（如果需要）：
-   - 在仓库的Settings → Secrets and variables → Actions
-   - 添加DOCKERHUB_TOKEN等（如果需要推送到Docker Hub）
+项目支持多架构镜像构建：
+- **支持的架构**：linux/amd64, linux/arm64
+- **镜像标签**：
+  - `ghcr.io/liwoyuandiane/tg-content-bot-pro:main` - 主分支镜像
+  - `ghcr.io/liwoyuandiane/tg-content-bot-pro:latest` - 最新稳定版
+- **健康检查**：内置HTTP健康检查端点（端口8080）
 
 ### 工作流程
 
@@ -133,37 +113,51 @@ git checkout main
    git add .
    git commit -m "功能更新"
    git push origin main
-   # GitHub Actions会自动构建镜像
+   # GitHub Actions会自动构建多架构镜像
    ```
 
 2. **部署阶段（pull分支）**：
    ```bash
    git checkout pull
+   cp .env.example .env
+   nano .env  # 配置环境变量
    docker-compose up -d  # 直接使用预构建的镜像，部署更快
    ```
 
-3. **分支同步（当main分支更新时）**：
+3. **健康检查**：
    ```bash
-   git checkout pull
-   git merge main --no-commit
-   git checkout HEAD -- Dockerfile  # 保留pull分支的Dockerfile
-   git commit -m "合并main分支更新"
-   git push origin pull
+   # 检查应用状态
+   curl http://localhost:8080/health
+   # 查看状态页面
+   curl http://localhost:8080/
    ```
 
-### 镜像地址格式
+### 极简部署优势
 
-构建后的镜像地址为：
-```
-ghcr.io/你的用户名/TG-Content-Bot-Pro:latest
-```
-
-### 优势
-
-- 🚀 **快速部署**：pull分支直接使用预构建镜像，无需重新构建
-- 🔧 **开发独立**：main分支专注于开发，不受部署影响
-- 📦 **版本管理**：GitHub Actions自动管理镜像版本和标签
+- 🚀 **快速部署**：pull分支只有4个文件，下载秒完成
+- 🏗️ **多架构支持**：支持x86和ARM架构的服务器
+- 🔍 **健康监控**：内置HTTP健康检查，便于容器编排
+- 📦 **版本控制**：GitHub Actions自动管理镜像版本
 - 🔒 **安全可靠**：使用GitHub官方容器注册表
+
+### 文件结构对比
+
+**main分支（开发构建）**：
+```
+├── main/           # 源代码目录
+├── scripts/        # 构建脚本
+├── .github/        # GitHub Actions配置
+├── Dockerfile      # 完整构建流程
+└── docker-compose.yml
+```
+
+**pull分支（极简部署）**：
+```
+├── Dockerfile      # 只有一行：FROM ghcr.io/liwoyuandiane/tg-content-bot-pro:main
+├── docker-compose.yml
+├── .env.example    # 环境变量模板
+└── README.md       # 使用说明
+```
 
 ---
 
