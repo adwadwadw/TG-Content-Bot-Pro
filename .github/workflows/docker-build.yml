@@ -6,6 +6,13 @@ on:
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      manual_build:
+        description: '手动构建镜像'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build-and-push:
