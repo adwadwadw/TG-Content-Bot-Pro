@@ -37,8 +37,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
     CMD ps aux | grep python | grep -v grep || exit 1
 
-# 复制启动脚本
-COPY start.sh .
-
 # 启动命令
 CMD ["sh", "start.sh"]

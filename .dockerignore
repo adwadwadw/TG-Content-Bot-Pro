@@ -17,7 +17,6 @@ ENV/
 .qoder/
 *.tar.gz
 deploy.sh
-start.sh
 tg-bot.service
 README.md
 *.md
