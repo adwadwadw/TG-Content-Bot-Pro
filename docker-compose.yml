@@ -17,6 +17,10 @@ services:
       SESSION: ${SESSION:-}
       FORCESUB: ${FORCESUB:-}
     
+    # 端口映射 - 用于健康检查
+    ports:
+      - "8080:8080"
+    
     # 日志配置
     logging:
       driver: "json-file"
