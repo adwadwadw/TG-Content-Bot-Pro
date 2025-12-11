@@ -1,0 +1,57 @@
+{
+  "name": "TG Content Bot Pro",
+  "description": "Telegram内容机器人 - 支持消息下载、批量操作和流量统计",
+  "keywords": ["telegram", "bot", "content", "download", "python"],
+  "website": "https://github.com/liwoyuandiane/TG-Content-Bot-Pro",
+  "repository": "https://github.com/liwoyuandiane/TG-Content-Bot-Pro",
+  "stack": "container",
+  "env": {
+    "API_ID": {
+      "description": "Telegram API ID (从 my.telegram.org 获取)",
+      "required": true
+    },
+    "API_HASH": {
+      "description": "Telegram API Hash (从 my.telegram.org 获取)",
+      "required": true
+    },
+    "BOT_TOKEN": {
+      "description": "机器人Token (从 @BotFather 获取)",
+      "required": true
+    },
+    "AUTH": {
+      "description": "授权用户ID (从 @userinfobot 获取)",
+      "required": true
+    },
+    "MONGO_DB": {
+      "description": "MongoDB连接字符串 (可选)",
+      "required": false
+    },
+    "SESSION": {
+      "description": "Pyrogram会话字符串 (可选)",
+      "required": false
+    },
+    "FORCESUB": {
+      "description": "强制订阅频道用户名 (可选)",
+      "required": false
+    },
+    "HEALTH_CHECK_PORT": {
+      "description": "健康检查端口",
+      "value": "8080",
+      "required": false
+    }
+  },
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  },
+  "buildpacks": [
+    {
+      "url": "heroku/python"
+    }
+  ],
+  "addons": [
+    "mongolab:sandbox"
+  ]
+}

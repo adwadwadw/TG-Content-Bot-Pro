@@ -1,0 +1,91 @@
+{
+  "name": "tg-content-bot-pro",
+  "version": "1.0.0",
+  "description": "Telegram Content Bot Pro - 极简部署版本",
+  "type": "docker",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "env": {
+    "API_ID": {
+      "description": "Telegram API ID (从 my.telegram.org 获取)",
+      "required": true,
+      "type": "number"
+    },
+    "API_HASH": {
+      "description": "Telegram API Hash (从 my.telegram.org 获取)",
+      "required": true,
+      "type": "string"
+    },
+    "BOT_TOKEN": {
+      "description": "机器人Token (从 @BotFather 获取)",
+      "required": true,
+      "type": "string"
+    },
+    "AUTH": {
+      "description": "授权用户ID (从 @userinfobot 获取)",
+      "required": true,
+      "type": "number"
+    },
+    "MONGO_DB": {
+      "description": "MongoDB连接字符串 (可选)",
+      "required": false,
+      "type": "string"
+    },
+    "SESSION": {
+      "description": "Pyrogram会话字符串 (可选)",
+      "required": false,
+      "type": "string"
+    },
+    "FORCESUB": {
+      "description": "强制订阅频道用户名 (可选)",
+      "required": false,
+      "type": "string"
+    },
+    "HEALTH_CHECK_PORT": {
+      "description": "健康检查端口",
+      "required": false,
+      "default": "8080",
+      "type": "number"
+    }
+  },
+  "ports": [
+    {
+      "port": 8080,
+      "protocol": "tcp",
+      "description": "健康检查端口"
+    }
+  ],
+  "healthcheck": {
+    "test": ["CMD", "curl", "-f", "http://localhost:8080/health"],
+    "interval": 30,
+    "timeout": 10,
+    "retries": 3,
+    "start_period": 60
+  },
+  "deploy": {
+    "replicas": 1,
+    "resources": {
+      "limits": {
+        "memory": "512M",
+        "cpus": "1.0"
+      },
+      "reservations": {
+        "memory": "256M",
+        "cpus": "0.5"
+      }
+    },
+    "restart_policy": {
+      "condition": "any",
+      "delay": 5,
+      "max_attempts": 3,
+      "window": 120
+    }
+  },
+  "labels": {
+    "app": "tg-content-bot-pro",
+    "version": "1.0.0",
+    "maintainer": "TG Content Bot Pro Team"
+  }
+}
