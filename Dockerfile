@@ -22,8 +22,13 @@ COPY requirements.txt .
 # 安装Python依赖
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制应用代码
-COPY . .
+# 复制应用代码（排除不必要的文件）
+COPY main/ ./
+COPY start.sh .
+COPY .dockerignore .
+
+# 设置执行权限
+RUN chmod +x start.sh
 
 # 暴露健康检查端口
 EXPOSE 8080

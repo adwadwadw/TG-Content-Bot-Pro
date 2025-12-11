@@ -1,5 +1,3 @@
-#Github.com-Vasusen-code
-
 telethon==1.24.0
 ethon
 cryptg
