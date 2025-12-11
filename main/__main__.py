@@ -3,6 +3,38 @@ import sys
 import logging
 import asyncio
 import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# 健康检查处理器
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'OK')
+        elif self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b'<html><body><h1>TG Content Bot Pro</h1><p>Status: Running</p><p><a href="/health">Health Check</a></p></body></html>')
+        else:
+            self.send_response(404)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'Not Found')
+    
+    def log_message(self, format, *args):
+        # 静默日志，避免干扰主应用日志
+        pass
+
+def start_health_server():
+    """启动健康检查HTTP服务器"""
+    port = int(os.getenv('HEALTH_CHECK_PORT', '8080'))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    logging.info(f"Health check server started on port {port}")
+    server.serve_forever()
 
 # 手动加载环境变量
 try:
@@ -15,7 +47,8 @@ try:
         env_vars = [
             'API_ID', 'API_HASH', 'BOT_TOKEN', 'AUTH', 'MONGO_DB',
             'FORCESUB', 'SESSION', 'TELEGRAM_PROXY_SCHEME', 
-            'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT'
+            'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT',
+            'HEALTH_CHECK_PORT'
         ]
         
         for key in env_vars:
@@ -35,5 +68,14 @@ logging.basicConfig(format='[%(levelname) 5s/%(asctime)s] %(name)s: %(message)s'
 
 from .app import main
 
-if __name__ == "__main__":
+def enhanced_main():
+    """增强的主函数，启动HTTP健康检查服务器和Telegram机器人"""
+    # 在后台启动健康检查服务器
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+    
+    # 启动原有的Telegram机器人
     main()
+
+if __name__ == "__main__":
+    enhanced_main()
