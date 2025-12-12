@@ -43,7 +43,7 @@ RUN pip install --no-cache-dir cryptography==41.0.7 && \
     pip install --no-cache-dir tgcrypto==1.2.5
 
 # 复制应用代码（排除不必要的文件）
-COPY main/ ./
+COPY main/ ./main/
 COPY start.sh .
 COPY .dockerignore .
 
