@@ -448,7 +448,9 @@ class ClientManager:
                         "auth key not found", 
                         "404", 
                         "old session", 
-                        "session string"
+                        "session string",
+                        "transport error",
+                        "server sent"
                     ]
                     is_session_error = any(err in error_msg for err in session_errors)
                     logger.debug(f"是否为SESSION错误: {is_session_error}")
@@ -467,6 +469,19 @@ class ClientManager:
                             # 清除当前SESSION配置
                             settings.SESSION = None
                             logger.info("已清除当前SESSION配置")
+                            
+                            # 强制重启Userbot客户端（无SESSION模式）
+                            logger.info("正在重新启动Userbot客户端（无SESSION模式）...")
+                            self.userbot = Client(
+                                "saverestricted", 
+                                api_hash=settings.API_HASH, 
+                                api_id=settings.API_ID,
+                                sleep_threshold=0
+                            )
+                            await self.userbot.start()
+                            logger.info("Userbot客户端已重新启动（无SESSION模式）")
+                            return
+                            
                         except Exception as delete_error:
                             logger.error(f"自动删除SESSION时出错: {delete_error}")
                     

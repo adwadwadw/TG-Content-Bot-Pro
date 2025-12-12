@@ -513,9 +513,28 @@ class DownloadService:
                 return await self.download_message(None, client, None, sender, edit_id, new_link, 0)
             await client.copy_message(sender, chat, msg_id)
         except Exception as e:
-            logger.error(f"复制消息时出错: {e}", exc_info=True)
+            error_msg = str(e).lower()
+            
+            # 检查是否是SESSION相关错误
+            session_errors = [
+                "auth key not found", 
+                "404", 
+                "old session",
+                "username not found",
+                "id not found",
+                "keyerror"
+            ]
+            is_session_error = any(err in error_msg for err in session_errors)
+            
+            if is_session_error:
+                logger.warning(f"下载失败（SESSION问题）: {error_msg}")
+                error_display = "下载失败：SESSION无效或过期，请重新登录或联系管理员"
+            else:
+                logger.error(f"复制消息时出错: {e}", exc_info=True)
+                error_display = f"保存失败: `{msg_link}`\n\n错误: {str(e)}"
+            
             if edit_id > 0:
-                await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {str(e)}')
+                await client.edit_message_text(sender, edit_id, error_display)
             return False
         
         # 只有在edit不为None时才删除状态消息
