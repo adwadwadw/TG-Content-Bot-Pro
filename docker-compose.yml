@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   tg-content-bot:
-    build: .
+    image: ghcr.io/liwoyuandiane/tg-content-bot-pro:main
     container_name: tg-content-bot
     restart: unless-stopped
     
