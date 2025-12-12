@@ -227,19 +227,29 @@ show_env_config_guide() {
         read -p "是否现在编辑.env文件？(y/N): " -n 1 -r
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
-            # 尝试使用系统编辑器，如果失败则使用nano
-            if [ -n "${EDITOR:-}" ] && command -v "$EDITOR" &> /dev/null; then
-                "$EDITOR" .env
-            elif command -v nano &> /dev/null; then
-                nano .env
-            elif command -v vim &> /dev/null; then
-                vim .env
-            elif command -v vi &> /dev/null; then
-                vi .env
-            else
+            # 安全地选择编辑器，避免任何未定义变量错误
+            local editor_found=false
+            
+            # 检查可用编辑器（按优先级排序）
+            for editor in "${EDITOR:-}" nano vim vi; do
+                if [ -n "$editor" ] && command -v "$editor" &> /dev/null; then
+                    log "使用编辑器: $editor"
+                    "$editor" .env
+                    editor_found=true
+                    break
+                fi
+            done
+            
+            if [ "$editor_found" = "false" ]; then
                 warn "未找到可用的文本编辑器，请手动编辑 .env 文件"
+                echo ""
                 echo "可以使用以下命令手动编辑："
-                echo "nano .env 或 vim .env"
+                echo "nano .env    # 简单易用"
+                echo "vim .env     # 功能强大"
+                echo "vi .env      # 基础编辑器"
+                echo ""
+                echo "编辑完成后，请重新运行部署脚本："
+                echo "./deploy.sh"
             fi
         fi
     fi
