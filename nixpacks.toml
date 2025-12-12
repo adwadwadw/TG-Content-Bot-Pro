@@ -27,10 +27,10 @@ cmds = [
 
 [start]
 # 启动命令
-cmd = "python -m main"
+cmd = "sh start.sh"
 
 # 端口映射
 [[processes]]
 name = "web"
-cmd = "python -m main"
+cmd = "sh start.sh"
 ports = [8080]
