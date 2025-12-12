@@ -70,7 +70,7 @@ class ConfigValidator:
         # BOT_TOKEN验证
         if not settings.BOT_TOKEN:
             self.errors.append("BOT_TOKEN 不能为空")
-        elif not re.match(r'^\d+:\w+$', settings.BOT_TOKEN):
+        elif not re.match(r'^\d+:[A-Za-z0-9_-]+$', settings.BOT_TOKEN):
             self.errors.append("BOT_TOKEN 格式无效，应为 '数字:字符串' 格式")
         
         # AUTH验证
@@ -107,6 +107,12 @@ class ConfigValidator:
     
     def _validate_proxy_config(self) -> None:
         """验证代理配置"""
+        # 检查是否明确禁用了代理
+        disable_proxy = os.getenv('DISABLE_PROXY', '').lower() in ['true', '1', 'yes']
+        if disable_proxy:
+            # 如果明确禁用了代理，跳过代理配置验证
+            return
+        
         proxy_config = settings.get_proxy_config()
         
         if proxy_config:
