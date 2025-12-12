@@ -701,8 +701,9 @@ class SessionPlugin(BasePlugin):
                     await event.reply("❌ 验证码只能包含数字，请重新发送")
                     return
                 
-                if len(code) != 5:
-                    await event.reply(f"❌ 验证码应为5位数字，当前为{len(code)}位，请重新发送")
+                # 验证码长度检查：支持5位或6位验证码
+                if len(code) not in [5, 6]:
+                    await event.reply(f"❌ 验证码应为5位或6位数字，当前为{len(code)}位，请重新发送")
                     return
                 
                 temp_client = data.get('client')
@@ -747,8 +748,7 @@ class SessionPlugin(BasePlugin):
                 except Exception as sign_in_error:
                     # 检查是否需要密码
                     err_str = str(sign_in_error)
-                    self.logger.error(f"验证码验证失败: {err_str}")
-
+                    
                     if "password" in err_str.lower() or "two_factor" in err_str.lower(): 
                         task['step'] = 'password'
                         await event.reply(
@@ -756,20 +756,12 @@ class SessionPlugin(BasePlugin):
                             "请发送您的 **两步验证密码**"
                         )
                         return
-                    # 针对验证码过期的专门处理与引导
-                    elif "PHONE_CODE_EXPIRED" in err_str or "phone_code_expired" in err_str.lower():
-                        await event.reply(
-                            "❌ 验证码已过期\n\n"
-                            "请发送 `resend` 重新获取新的验证码，或重新运行 /generatesession\n"
-                            "提示：验证码有效期很短，请尽快输入"
-                        )
-                        return
                     else:
-                        # 其他错误（包括PHONE_CODE_EMPTY）直接提示用户重试
-                        await event.reply(
-                            f"❌ 验证码验证失败: {err_str}\n\n"
-                            "请发送 `resend` 重新获取验证码，或重新运行 /generatesession"
-                        )
+                        # 所有其他错误（包括PHONE_CODE_EMPTY、PHONE_CODE_EXPIRED等）统一处理
+                        # 简化处理：直接提示用户重新开始，避免复杂的错误分类
+                        await event.reply(f"❌ 验证码验证失败: {err_str}\n\n请使用 /generatesession 重新开始")
+                        await temp_client.disconnect()
+                        del self.session_generation_tasks[user_id]
                         return
                 
                 # 登录成功，生成SESSION
