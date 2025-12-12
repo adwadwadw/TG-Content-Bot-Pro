@@ -228,14 +228,18 @@ show_env_config_guide() {
         echo
         if [[ $REPLY =~ ^[Yy]$ ]]; then
             # 尝试使用系统编辑器，如果失败则使用nano
-            if command -v $EDITOR &> /dev/null; then
-                $EDITOR .env
+            if [ -n "${EDITOR:-}" ] && command -v "$EDITOR" &> /dev/null; then
+                "$EDITOR" .env
             elif command -v nano &> /dev/null; then
                 nano .env
             elif command -v vim &> /dev/null; then
                 vim .env
+            elif command -v vi &> /dev/null; then
+                vi .env
             else
                 warn "未找到可用的文本编辑器，请手动编辑 .env 文件"
+                echo "可以使用以下命令手动编辑："
+                echo "nano .env 或 vim .env"
             fi
         fi
     fi
