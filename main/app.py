@@ -122,12 +122,18 @@ async def startup():
     # 配置验证
     try:
         from .utils.config_validator import ensure_config_integrity
-        if not ensure_config_integrity():
-            logger.error("❌ 配置验证失败，应用无法启动")
-            return
+        config_valid = ensure_config_integrity()
+        if not config_valid:
+            logger.warning("⚠️ 配置验证失败，应用将以降级模式启动")
+            logger.warning("📡 仅启动健康检查服务，无法连接到Telegram")
+            logger.warning("💡 请检查.env文件中的API_ID、API_HASH和BOT_TOKEN配置")
+            
+            # 降级模式：只启动健康检查服务
+            return False
     except Exception as e:
         logger.error(f"配置验证时出错: {e}", exc_info=True)
-        logger.warning("将继续启动应用，但配置可能存在问题")
+        logger.warning("应用将以降级模式启动")
+        return False
     
     # 初始化客户端
     try:
@@ -196,7 +202,22 @@ async def main_async():
     """异步主函数"""
     try:
         # 运行启动函数
-        await startup()
+        startup_result = await startup()
+        
+        # 如果启动失败（配置无效），进入降级模式
+        if startup_result is False:
+            logger.info("📡 降级模式启动完成 - 仅健康检查服务可用")
+            logger.info("🔗 健康检查地址: http://localhost:8080/health")
+            logger.info("💡 请配置有效的Telegram API凭证以启用完整功能")
+            
+            # 保持应用运行，提供健康检查服务
+            try:
+                while True:
+                    await asyncio.sleep(60)  # 每分钟检查一次
+                    logger.debug("降级模式运行中...")
+            except KeyboardInterrupt:
+                logger.info("收到中断信号，正在关闭...")
+            return
         
         # 检查客户端是否已初始化
         if client_manager.bot is not None and hasattr(client_manager.bot, 'is_connected') and client_manager.bot.is_connected():

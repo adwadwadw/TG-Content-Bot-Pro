@@ -63,73 +63,33 @@ class StructuredFormatter(logging.Formatter):
 
 def setup_logging():
     """设置日志配置 - 支持日志轮转和结构化日志"""
-    # 创建日志目录
-    log_dir = "logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    # 强制开发环境配置
+    env = os.getenv('ENVIRONMENT', 'development')
+    debug_mode = os.getenv('DEBUG', 'false').lower() == 'true'
     
-    # 配置日志级别
-    log_level_name = settings.LOG_LEVEL.upper()
-    log_level = getattr(logging, log_level_name, logging.INFO)
+    # 开发环境强制使用详细日志
+    if env == 'development' or debug_mode:
+        log_level = logging.DEBUG
+        log_level_name = 'DEBUG'
+    else:
+        log_level_name = settings.LOG_LEVEL.upper()
+        log_level = getattr(logging, log_level_name, logging.INFO)
     
     # 清除现有的处理器
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     
-    # 创建格式化器
-    if settings.ENVIRONMENT == "production":
-        # 生产环境：JSON格式
-        formatter = StructuredFormatter()
-    else:
-        # 开发环境：详细的可读格式
-        log_format = '[%(levelname)8s/%(asctime)s] %(name)25s:%(lineno)4d [%(funcName)15s]: %(message)s'
-        date_format = '%Y-%m-%d %H:%M:%S'
-        formatter = StructuredFormatter(log_format, date_format)
+    # 开发环境使用更详细的格式化器
+    log_format = '[%(asctime)s] [%(levelname)8s] [%(name)20s:%(lineno)4d] %(message)s'
+    date_format = '%H:%M:%S'
+    formatter = logging.Formatter(log_format, date_format)
     
-    # 控制台处理器（开发环境）
-    if settings.ENVIRONMENT != "production":
-        console_handler = logging.StreamHandler(sys.stdout)
-        console_handler.setLevel(log_level)
-        console_handler.setFormatter(formatter)
-        root_logger.addHandler(console_handler)
-    
-    # 文件处理器 - 按时间轮转
-    if settings.ENVIRONMENT == "production":
-        # 生产环境：按天轮转，保留30天
-        log_file = os.path.join(log_dir, "bot.log")
-        file_handler = TimedRotatingFileHandler(
-            log_file,
-            when='midnight',
-            interval=1,
-            backupCount=30,
-            encoding='utf-8'
-        )
-    else:
-        # 开发环境：按大小轮转，最大10MB，保留5个备份
-        log_file = os.path.join(log_dir, "bot_debug.log")
-        file_handler = RotatingFileHandler(
-            log_file,
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5,
-            encoding='utf-8'
-        )
-    
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
-    root_logger.addHandler(file_handler)
-    
-    # 错误日志单独处理
-    error_log_file = os.path.join(log_dir, "error.log")
-    error_handler = RotatingFileHandler(
-        error_log_file,
-        maxBytes=5*1024*1024,  # 5MB
-        backupCount=10,
-        encoding='utf-8'
-    )
-    error_handler.setLevel(logging.ERROR)
-    error_handler.setFormatter(formatter)
-    root_logger.addHandler(error_handler)
+    # 强制控制台输出（开发环境）
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    console_handler.setFormatter(formatter)
+    root_logger.addHandler(console_handler)
     
     # 设置根日志级别
     root_logger.setLevel(log_level)
@@ -137,16 +97,22 @@ def setup_logging():
     # 优化第三方库日志级别
     _optimize_third_party_logging()
     
-    logger = logging.getLogger(__name__)
-    logger.info("=" * 70)
-    logger.info("🎯 高级日志系统初始化完成")
-    logger.info("📁 日志文件: %s", log_file)
-    logger.info("🔧 日志级别: %s", log_level_name)
-    logger.info("🌍 环境: %s", settings.ENVIRONMENT)
-    logger.info("📊 格式: %s", "JSON" if settings.ENVIRONMENT == "production" else "文本")
-    logger.info("=" * 70)
+    # 开发环境额外配置
+    if env == 'development' or debug_mode:
+        # 启用所有模块的DEBUG级别
+        logging.getLogger('main').setLevel(logging.DEBUG)
+        logging.getLogger('utils').setLevel(logging.DEBUG)
+        logging.getLogger('core').setLevel(logging.DEBUG)
+        logging.getLogger('services').setLevel(logging.DEBUG)
+        
+        print("=" * 70)
+        print("🔧 开发模式日志系统已初始化")
+        print(f"📊 日志级别: {log_level_name}")
+        print(f"🌍 环境: {env}")
+        print(f"🐛 调试模式: {debug_mode}")
+        print("=" * 70)
     
-    return logger
+    return logging.getLogger(__name__)
 
 
 def _optimize_third_party_logging():
