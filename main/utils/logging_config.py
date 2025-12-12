@@ -135,7 +135,7 @@ def setup_logging():
     root_logger.setLevel(log_level)
     
     # 优化第三方库日志级别
-    self._optimize_third_party_logging()
+    _optimize_third_party_logging()
     
     logger = logging.getLogger(__name__)
     logger.info("=" * 70)
