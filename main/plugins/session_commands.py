@@ -80,7 +80,6 @@ class SessionPlugin(BasePlugin):
             return False, "这看起来像是手机号码，请在SESSION生成流程中使用"
         
         # 清理字符串，移除所有非base64字符，但保留换行符和空格以便后续处理
-        import re
         # 先保存原始字符串用于显示
         original_length = len(session_string)
         # 清理字符串，但更宽松地处理
@@ -147,7 +146,6 @@ class SessionPlugin(BasePlugin):
                 return
             
             # 使用清理后的 SESSION 字符串
-            import re
             cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', session_string)
             
             # 添加用户
@@ -600,7 +598,6 @@ class SessionPlugin(BasePlugin):
                     error_msg = "❌ 发送验证码失败\n\n"
                     if "FLOOD_WAIT" in str(e).upper():
                         # 解析 FloodWait 错误中的等待时间
-                        import re
                         flood_match = re.search(r'(\d+)', str(e))
                         if flood_match:
                             wait_seconds = int(flood_match.group(1))
