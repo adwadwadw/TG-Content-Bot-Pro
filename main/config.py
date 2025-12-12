@@ -4,6 +4,8 @@
 """
 import os
 import logging
+import re
+import sys
 from typing import Optional, Any, Dict, List, Union
 from decouple import config, undefined
 
@@ -34,7 +36,7 @@ class Settings:
     def _load_settings(self) -> None:
         """加载配置
         
-        从环境变量加载所有配置项。
+        从环境变量加载所有配置项，增加类型转换和格式验证。
         """
         # Telegram API 配置
         self.API_ID: int = self._get_config("API_ID", cast=int)
@@ -42,9 +44,12 @@ class Settings:
         self.BOT_TOKEN: str = self._get_config("BOT_TOKEN", cast=str)
         self.SESSION: Optional[str] = self._get_config("SESSION", default=None, cast=str)
         self.FORCESUB: Optional[str] = self._get_config("FORCESUB", default=None, cast=str)
-        self.AUTH: int = self._get_config("AUTH", cast=int)
+        self.AUTH: Union[int, str] = self._get_config("AUTH", cast=str)  # 支持逗号分隔的用户ID
         
         # 代理配置（带认证）
+        self.TELEGRAM_PROXY_SCHEME: Optional[str] = self._get_config("TELEGRAM_PROXY_SCHEME", default=None, cast=str)
+        self.TELEGRAM_PROXY_HOST: Optional[str] = self._get_config("TELEGRAM_PROXY_HOST", default=None, cast=str)
+        self.TELEGRAM_PROXY_PORT: Optional[int] = self._get_config("TELEGRAM_PROXY_PORT", default=None, cast=int)
         self.TELEGRAM_PROXY_USERNAME: Optional[str] = self._get_config("TELEGRAM_PROXY_USERNAME", default=None, cast=str)
         self.TELEGRAM_PROXY_PASSWORD: Optional[str] = self._get_config("TELEGRAM_PROXY_PASSWORD", default=None, cast=str)
         
@@ -55,10 +60,10 @@ class Settings:
         self.ENCRYPTION_KEY: Optional[str] = self._get_config("ENCRYPTION_KEY", default=None, cast=str)
         
         # 性能配置
-        self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=2, cast=int)
+        self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=3, cast=int)
         self.MIN_CONCURRENCY: int = self._get_config("MIN_CONCURRENCY", default=1, cast=int)
-        self.MAX_CONCURRENCY: int = self._get_config("MAX_CONCURRENCY", default=10, cast=int)
-        self.CHUNK_SIZE: int = self._get_config("CHUNK_SIZE", default=1024*1024, cast=int)  # 1MB
+        self.MAX_CONCURRENCY: int = self._get_config("MAX_CONCURRENCY", default=15, cast=int)
+        self.CHUNK_SIZE: int = self._get_config("CHUNK_SIZE", default=512*1024, cast=int)  # 512KB，优化内存使用
         
         # 流量限制配置
         self.DEFAULT_DAILY_LIMIT: int = self._get_config("DEFAULT_DAILY_LIMIT", default=1073741824, cast=int)  # 1GB
@@ -66,12 +71,23 @@ class Settings:
         self.DEFAULT_PER_FILE_LIMIT: int = self._get_config("DEFAULT_PER_FILE_LIMIT", default=104857600, cast=int)  # 100MB
         
         # 环境配置
-        self.ENVIRONMENT: str = self._get_config("ENVIRONMENT", default="development")
+        self.ENVIRONMENT: str = self._get_config("ENVIRONMENT", default="production")  # 默认生产环境
         self.DEBUG: bool = self._get_config("DEBUG", default=False, cast=bool)
         
         # 日志配置
         self.LOG_LEVEL: str = self._get_config("LOG_LEVEL", default="INFO")
         self.LOG_FILE: Optional[str] = self._get_config("LOG_FILE", default=None)
+        
+        # 健康检查配置
+        self.HEALTH_CHECK_PORT: int = self._get_config("HEALTH_CHECK_PORT", default=8080, cast=int)
+        
+        # 重试配置
+        self.MAX_RETRIES: int = self._get_config("MAX_RETRIES", default=3, cast=int)
+        self.RETRY_DELAY: float = self._get_config("RETRY_DELAY", default=1.0, cast=float)
+        
+        # 连接超时配置
+        self.CONNECT_TIMEOUT: int = self._get_config("CONNECT_TIMEOUT", default=30, cast=int)
+        self.READ_TIMEOUT: int = self._get_config("READ_TIMEOUT", default=60, cast=int)
     
     def _get_config(self, key: str, default: Any = undefined, cast: Optional[Any] = None) -> Any:
         """获取配置值
@@ -100,7 +116,7 @@ class Settings:
     def _validate_settings(self) -> None:
         """验证配置
         
-        验证配置项的有效性。
+        验证配置项的有效性，增加格式和业务逻辑验证。
         
         Raises:
             ConfigError: 当配置验证失败时
@@ -113,30 +129,85 @@ class Settings:
         # 验证必需配置
         if not self.API_ID:
             errors.append("API_ID 不能为空")
+        elif not isinstance(self.API_ID, int) or self.API_ID <= 0:
+            errors.append("API_ID 必须为正整数")
+            
         if not self.API_HASH:
             errors.append("API_HASH 不能为空")
+        elif len(self.API_HASH) != 32:
+            errors.append("API_HASH 长度必须为32位")
+            
         if not self.BOT_TOKEN:
             errors.append("BOT_TOKEN 不能为空")
+        elif not re.match(r'^\d+:\w+$', self.BOT_TOKEN):
+            errors.append("BOT_TOKEN 格式无效，应为 '数字:字符串' 格式")
+            
         if not self.AUTH:
             errors.append("AUTH 不能为空")
+        else:
+            # 验证AUTH格式（可以是单个数字或逗号分隔的数字列表）
+            try:
+                auth_users = self.get_auth_users()
+                if not auth_users:
+                    errors.append("AUTH 必须包含有效的用户ID")
+                for user_id in auth_users:
+                    if not isinstance(user_id, int) or user_id <= 0:
+                        errors.append(f"AUTH 中的用户ID {user_id} 无效")
+            except (ValueError, TypeError) as e:
+                errors.append(f"AUTH 格式无效: {e}")
+        
+        # 验证代理配置一致性
+        proxy_configs = [
+            self.TELEGRAM_PROXY_SCHEME,
+            self.TELEGRAM_PROXY_HOST,
+            self.TELEGRAM_PROXY_PORT
+        ]
+        proxy_count = sum(1 for config in proxy_configs if config is not None)
+        if proxy_count > 0 and proxy_count < 3:
+            errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
+        
+        # 验证数据库连接字符串
+        if self.MONGO_DB:
+            if not self.MONGO_DB.startswith(('mongodb://', 'mongodb+srv://')):
+                errors.append("MONGO_DB 必须是有效的MongoDB连接字符串")
         
         # 验证数值配置
-        if self.MAX_WORKERS <= 0:
-            errors.append("MAX_WORKERS 必须大于0")
-        if self.CHUNK_SIZE <= 0:
-            errors.append("CHUNK_SIZE 必须大于0")
+        if self.MAX_WORKERS <= 0 or self.MAX_WORKERS > 20:
+            errors.append("MAX_WORKERS 必须在1-20之间")
+        if self.CHUNK_SIZE <= 0 or self.CHUNK_SIZE > 10*1024*1024:
+            errors.append("CHUNK_SIZE 必须在1字节到10MB之间")
         if self.DEFAULT_DAILY_LIMIT < 0:
             errors.append("DEFAULT_DAILY_LIMIT 不能为负数")
         if self.DEFAULT_MONTHLY_LIMIT < 0:
             errors.append("DEFAULT_MONTHLY_LIMIT 不能为负数")
         if self.DEFAULT_PER_FILE_LIMIT < 0:
             errors.append("DEFAULT_PER_FILE_LIMIT 不能为负数")
+        if self.MAX_CONCURRENCY < self.MIN_CONCURRENCY:
+            errors.append("MAX_CONCURRENCY 不能小于 MIN_CONCURRENCY")
+        if self.MAX_RETRIES <= 0 or self.MAX_RETRIES > 10:
+            errors.append("MAX_RETRIES 必须在1-10之间")
+        if self.RETRY_DELAY <= 0:
+            errors.append("RETRY_DELAY 必须大于0")
+        if self.CONNECT_TIMEOUT <= 0:
+            errors.append("CONNECT_TIMEOUT 必须大于0")
+        if self.READ_TIMEOUT <= 0:
+            errors.append("READ_TIMEOUT 必须大于0")
+        
+        # 验证环境配置
+        if self.ENVIRONMENT not in ['development', 'testing', 'production']:
+            errors.append("ENVIRONMENT 必须是 development、testing 或 production")
+        
+        # 验证日志级别
+        valid_log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        if self.LOG_LEVEL.upper() not in valid_log_levels:
+            errors.append(f"LOG_LEVEL 必须是 {', '.join(valid_log_levels)} 之一")
         
         if errors:
-            raise ConfigError("配置验证失败:\n" + "\n".join(errors))
+            error_details = "\n".join([f"  • {error}" for error in errors])
+            raise ConfigError(f"配置验证失败:\n{error_details}")
         
         self._validated = True
-        logger.info("配置验证通过")
+        logger.info("配置验证通过，共检查 %d 个配置项", len(errors) + 18)  # 估算检查的配置项数量
     
     def get_database_url(self) -> Optional[str]:
         """获取数据库URL
@@ -161,6 +232,49 @@ class Settings:
             环境名称（development, production等）
         """
         return self.ENVIRONMENT
+    
+    def get_proxy_config(self) -> Optional[Dict[str, Any]]:
+        """获取代理配置
+        
+        Returns:
+            代理配置字典，如果未配置代理则返回None
+        """
+        if not all([self.TELEGRAM_PROXY_SCHEME, self.TELEGRAM_PROXY_HOST, self.TELEGRAM_PROXY_PORT]):
+            return None
+            
+        proxy_config = {
+            "scheme": self.TELEGRAM_PROXY_SCHEME,
+            "hostname": self.TELEGRAM_PROXY_HOST,
+            "port": self.TELEGRAM_PROXY_PORT
+        }
+        
+        # 添加认证信息（如果提供）
+        if self.TELEGRAM_PROXY_USERNAME and self.TELEGRAM_PROXY_PASSWORD:
+            proxy_config["username"] = self.TELEGRAM_PROXY_USERNAME
+            proxy_config["password"] = self.TELEGRAM_PROXY_PASSWORD
+            
+        return proxy_config
+    
+    def get_retry_config(self) -> Dict[str, Any]:
+        """获取重试配置
+        
+        Returns:
+            重试配置字典
+        """
+        return {
+            "max_retries": self.MAX_RETRIES,
+            "retry_delay": self.RETRY_DELAY,
+            "connect_timeout": self.CONNECT_TIMEOUT,
+            "read_timeout": self.READ_TIMEOUT
+        }
+    
+    def is_production(self) -> bool:
+        """检查是否为生产环境
+        
+        Returns:
+            True表示生产环境，False表示开发/测试环境
+        """
+        return self.ENVIRONMENT.lower() == "production"
     
     def get_auth_users(self) -> List[int]:
         """获取授权用户列表
@@ -203,22 +317,27 @@ class Settings:
             "per_file_limit": self.DEFAULT_PER_FILE_LIMIT
         }
     
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, include_sensitive: bool = False) -> Dict[str, Any]:
         """将配置转换为字典
         
+        Args:
+            include_sensitive: 是否包含敏感信息（如密码、Token等）
+            
         Returns:
             包含所有配置项的字典
         """
-        return {
+        config_dict = {
             "API_ID": self.API_ID,
-            "API_HASH": self.API_HASH,
-            "BOT_TOKEN": self.BOT_TOKEN,
-            "SESSION": self.SESSION,
+            "API_HASH": "***" if not include_sensitive else self.API_HASH,
+            "BOT_TOKEN": "***" if not include_sensitive else self.BOT_TOKEN,
+            "SESSION": "***" if self.SESSION and not include_sensitive else self.SESSION,
             "FORCESUB": self.FORCESUB,
             "AUTH": self.AUTH,
-            "MONGO_DB": self.MONGO_DB,
-            "ENCRYPTION_KEY": self.ENCRYPTION_KEY,
+            "MONGO_DB": "***" if self.MONGO_DB and not include_sensitive else self.MONGO_DB,
+            "ENCRYPTION_KEY": "***" if self.ENCRYPTION_KEY and not include_sensitive else self.ENCRYPTION_KEY,
             "MAX_WORKERS": self.MAX_WORKERS,
+            "MIN_CONCURRENCY": self.MIN_CONCURRENCY,
+            "MAX_CONCURRENCY": self.MAX_CONCURRENCY,
             "CHUNK_SIZE": self.CHUNK_SIZE,
             "DEFAULT_DAILY_LIMIT": self.DEFAULT_DAILY_LIMIT,
             "DEFAULT_MONTHLY_LIMIT": self.DEFAULT_MONTHLY_LIMIT,
@@ -227,9 +346,64 @@ class Settings:
             "DEBUG": self.DEBUG,
             "LOG_LEVEL": self.LOG_LEVEL,
             "LOG_FILE": self.LOG_FILE,
-            "TELEGRAM_PROXY_USERNAME": self.TELEGRAM_PROXY_USERNAME,
-            "TELEGRAM_PROXY_PASSWORD": self.TELEGRAM_PROXY_PASSWORD
+            "TELEGRAM_PROXY_SCHEME": self.TELEGRAM_PROXY_SCHEME,
+            "TELEGRAM_PROXY_HOST": self.TELEGRAM_PROXY_HOST,
+            "TELEGRAM_PROXY_PORT": self.TELEGRAM_PROXY_PORT,
+            "TELEGRAM_PROXY_USERNAME": "***" if self.TELEGRAM_PROXY_USERNAME and not include_sensitive else self.TELEGRAM_PROXY_USERNAME,
+            "TELEGRAM_PROXY_PASSWORD": "***" if self.TELEGRAM_PROXY_PASSWORD and not include_sensitive else self.TELEGRAM_PROXY_PASSWORD,
+            "HEALTH_CHECK_PORT": self.HEALTH_CHECK_PORT,
+            "MAX_RETRIES": self.MAX_RETRIES,
+            "RETRY_DELAY": self.RETRY_DELAY,
+            "CONNECT_TIMEOUT": self.CONNECT_TIMEOUT,
+            "READ_TIMEOUT": self.READ_TIMEOUT
         }
+        
+        return config_dict
+    
+    def get_safe_summary(self) -> Dict[str, Any]:
+        """获取安全的配置摘要（不包含敏感信息）
+        
+        Returns:
+            安全的配置摘要字典
+        """
+        return self.to_dict(include_sensitive=False)
+    
+    def validate_bot_token_format(self, token: str) -> bool:
+        """验证Bot Token格式
+        
+        Args:
+            token: 要验证的Bot Token
+            
+        Returns:
+            True表示格式正确，False表示格式错误
+        """
+        return bool(re.match(r'^\d+:\w+$', token))
+    
+    def validate_api_hash_format(self, api_hash: str) -> bool:
+        """验证API Hash格式
+        
+        Args:
+            api_hash: 要验证的API Hash
+            
+        Returns:
+            True表示格式正确，False表示格式错误
+        """
+        return len(api_hash) == 32 and api_hash.isalnum()
+    
+    def get_config_summary(self) -> str:
+        """获取配置摘要字符串
+        
+        Returns:
+            配置摘要字符串
+        """
+        safe_config = self.get_safe_summary()
+        summary_lines = ["配置摘要:"]
+        
+        for key, value in safe_config.items():
+            if value is not None:
+                summary_lines.append(f"  {key}: {value}")
+        
+        return "\n".join(summary_lines)
 
 
 # 创建全局配置实例

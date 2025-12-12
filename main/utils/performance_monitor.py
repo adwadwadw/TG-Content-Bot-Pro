@@ -1,14 +1,17 @@
 """性能监控模块
 
-提供性能监控功能，帮助识别性能瓶颈。
+提供高级性能监控功能，包括实时监控、性能分析和瓶颈识别。
 """
 import time
 import logging
 import threading
-from typing import Dict, Any, Callable, Optional
+import psutil
+import asyncio
+from typing import Dict, Any, Callable, Optional, List
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import deque
 
 logger = logging.getLogger(__name__)
 

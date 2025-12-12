@@ -1,267 +1,303 @@
-"""
-配置验证工具
-提供环境变量配置的完整性检查和验证功能
+"""配置验证器
+
+提供配置验证功能，确保配置的完整性和正确性。
 """
 import os
 import re
 import logging
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, Any, List, Optional
 from urllib.parse import urlparse
+
+from ..config import settings, ConfigError
 
 logger = logging.getLogger(__name__)
 
 
 class ConfigValidator:
-    """配置验证器"""
+    """配置验证器类"""
     
-    def __init__(self, settings):
-        self.settings = settings
+    def __init__(self):
+        """初始化配置验证器"""
         self.errors: List[str] = []
         self.warnings: List[str] = []
     
-    def validate_all(self) -> Tuple[bool, List[str], List[str]]:
-        """验证所有配置"""
+    def validate_all(self) -> bool:
+        """验证所有配置项
+        
+        Returns:
+            True表示所有配置验证通过，False表示存在错误
+        """
         self.errors.clear()
         self.warnings.clear()
         
-        # 验证必需配置
-        self._validate_required()
+        # 验证基本配置
+        self._validate_telegram_config()
+        self._validate_database_config()
+        self._validate_proxy_config()
+        self._validate_performance_config()
+        self._validate_security_config()
+        self._validate_environment_config()
         
-        # 验证格式和类型
-        self._validate_formats()
+        # 记录验证结果
+        if self.errors:
+            logger.error("配置验证失败，发现 %d 个错误", len(self.errors))
+            for error in self.errors:
+                logger.error("  • %s", error)
         
-        # 验证逻辑一致性
-        self._validate_logic()
+        if self.warnings:
+            logger.warning("配置验证发现 %d 个警告", len(self.warnings))
+            for warning in self.warnings:
+                logger.warning("  • %s", warning)
         
-        # 验证可选配置
-        self._validate_optional()
-        
-        return len(self.errors) == 0, self.errors, self.warnings
+        return len(self.errors) == 0
     
-    def _validate_required(self):
-        """验证必需配置"""
-        required_configs = [
-            ('API_ID', 'Telegram API ID'),
-            ('API_HASH', 'Telegram API Hash'),
-            ('BOT_TOKEN', 'Bot Token'),
-            ('AUTH', 'Owner User ID')
-        ]
+    def _validate_telegram_config(self) -> None:
+        """验证Telegram相关配置"""
+        # API_ID验证
+        if not settings.API_ID:
+            self.errors.append("API_ID 不能为空")
+        elif not isinstance(settings.API_ID, int) or settings.API_ID <= 0:
+            self.errors.append("API_ID 必须为正整数")
         
-        for config_name, description in required_configs:
-            value = getattr(self.settings, config_name, None)
-            if not value:
-                self.errors.append(f"必需配置缺失: {description} ({config_name})")
-            elif config_name == 'API_ID' and not str(value).isdigit():
-                self.errors.append(f"API_ID 必须是数字: {value}")
-            elif config_name == 'AUTH' and not str(value).isdigit():
-                self.errors.append(f"AUTH 必须是数字: {value}")
+        # API_HASH验证
+        if not settings.API_HASH:
+            self.errors.append("API_HASH 不能为空")
+        elif len(settings.API_HASH) != 32:
+            self.errors.append("API_HASH 长度必须为32位")
+        elif not settings.API_HASH.isalnum():
+            self.errors.append("API_HASH 必须为字母数字组合")
+        
+        # BOT_TOKEN验证
+        if not settings.BOT_TOKEN:
+            self.errors.append("BOT_TOKEN 不能为空")
+        elif not re.match(r'^\d+:\w+$', settings.BOT_TOKEN):
+            self.errors.append("BOT_TOKEN 格式无效，应为 '数字:字符串' 格式")
+        
+        # AUTH验证
+        if not settings.AUTH:
+            self.errors.append("AUTH 不能为空")
+        else:
+            try:
+                auth_users = settings.get_auth_users()
+                if not auth_users:
+                    self.errors.append("AUTH 必须包含有效的用户ID")
+                for user_id in auth_users:
+                    if not isinstance(user_id, int) or user_id <= 0:
+                        self.errors.append(f"AUTH 中的用户ID {user_id} 无效")
+            except (ValueError, TypeError) as e:
+                self.errors.append(f"AUTH 格式无效: {e}")
     
-    def _validate_formats(self):
-        """验证配置格式"""
-        # 验证 API_HASH 格式
-        api_hash = getattr(self.settings, 'API_HASH', '')
-        if api_hash and not re.match(r'^[a-f0-9]{32}$', api_hash, re.IGNORECASE):
-            self.errors.append(f"API_HASH 格式无效: {api_hash}")
+    def _validate_database_config(self) -> None:
+        """验证数据库配置"""
+        if not settings.MONGO_DB:
+            self.errors.append("MONGO_DB 不能为空")
+            return
         
-        # 验证 BOT_TOKEN 格式
-        bot_token = getattr(self.settings, 'BOT_TOKEN', '')
-        if bot_token and not re.match(r'^[0-9]+:[A-Za-z0-9_-]{35}$', bot_token):
-            self.errors.append(f"Bot Token 格式无效")
+        # 验证MongoDB连接字符串格式
+        if not settings.MONGO_DB.startswith(('mongodb://', 'mongodb+srv://')):
+            self.errors.append("MONGO_DB 必须是有效的MongoDB连接字符串")
         
-        # 验证 MONGO_DB 格式
-        mongo_db = getattr(self.settings, 'MONGO_DB', '')
-        if mongo_db:
-            if not mongo_db.startswith(('mongodb://', 'mongodb+srv://')):
-                self.errors.append("MongoDB 连接字符串格式无效，必须以 mongodb:// 或 mongodb+srv:// 开头")
-            else:
-                # 验证连接字符串的基本结构
-                try:
-                    parsed = urlparse(mongo_db)
-                    if not parsed.netloc:
-                        self.errors.append("MongoDB 连接字符串格式错误")
-                except Exception:
-                    self.errors.append("MongoDB 连接字符串格式错误")
-        
-        # 验证 ENCRYPTION_KEY 格式
-        encryption_key = getattr(self.settings, 'ENCRYPTION_KEY', '')
-        if encryption_key and len(encryption_key) < 32:
-            self.warnings.append("加密密钥长度建议至少32位")
+        # 尝试解析连接字符串
+        try:
+            parsed = urlparse(settings.MONGO_DB)
+            if not parsed.netloc:
+                self.errors.append("MONGO_DB 连接字符串格式错误")
+        except Exception as e:
+            self.errors.append(f"MONGO_DB 连接字符串解析失败: {e}")
     
-    def _validate_logic(self):
-        """验证逻辑一致性"""
-        # 检查 SESSION 和 MongoDB 的关联
-        session = getattr(self.settings, 'SESSION', '')
-        mongo_db = getattr(self.settings, 'MONGO_DB', '')
+    def _validate_proxy_config(self) -> None:
+        """验证代理配置"""
+        proxy_config = settings.get_proxy_config()
         
-        if session and not mongo_db:
-            self.warnings.append("配置了 SESSION 但未配置 MongoDB，SESSION 管理功能可能受限")
-        
-        # 检查代理配置的完整性
-        proxy_configs = [
-            'TELEGRAM_PROXY_SCHEME',
-            'TELEGRAM_PROXY_HOST', 
-            'TELEGRAM_PROXY_PORT'
-        ]
-        
-        proxy_values = [getattr(self.settings, config, '') for config in proxy_configs]
-        proxy_set_count = sum(1 for value in proxy_values if value)
-        
-        if proxy_set_count > 0 and proxy_set_count < len(proxy_configs):
-            self.warnings.append("代理配置不完整，部分代理参数缺失")
-        
-        # 验证代理端口
-        proxy_port = getattr(self.settings, 'TELEGRAM_PROXY_PORT', '')
-        if proxy_port and not str(proxy_port).isdigit():
-            self.errors.append("代理端口必须是数字")
-        elif proxy_port and not (1 <= int(proxy_port) <= 65535):
-            self.errors.append(f"代理端口范围无效: {proxy_port}")
+        if proxy_config:
+            # 验证代理类型
+            if proxy_config["scheme"] not in ['http', 'https', 'socks4', 'socks5']:
+                self.errors.append(f"不支持的代理协议: {proxy_config['scheme']}")
+            
+            # 验证主机和端口
+            if not proxy_config["hostname"]:
+                self.errors.append("代理主机不能为空")
+            
+            if not (1 <= proxy_config["port"] <= 65535):
+                self.errors.append(f"代理端口无效: {proxy_config['port']}")
+        else:
+            # 检查是否有部分代理配置
+            proxy_attrs = [
+                settings.TELEGRAM_PROXY_SCHEME,
+                settings.TELEGRAM_PROXY_HOST,
+                settings.TELEGRAM_PROXY_PORT
+            ]
+            
+            proxy_count = sum(1 for attr in proxy_attrs if attr is not None)
+            if proxy_count > 0:
+                self.errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
     
-    def _validate_optional(self):
-        """验证可选配置"""
-        # 验证 FORCESUB 频道格式
-        forcesub = getattr(self.settings, 'FORCESUB', '')
-        if forcesub and forcesub.startswith('@'):
-            self.warnings.append("FORCESUB 不应包含 @ 符号，只包含用户名")
+    def _validate_performance_config(self) -> None:
+        """验证性能相关配置"""
+        # 并发配置验证
+        if settings.MAX_WORKERS <= 0 or settings.MAX_WORKERS > 20:
+            self.errors.append("MAX_WORKERS 必须在1-20之间")
         
-        # 验证日志级别
-        log_level = getattr(self.settings, 'LOG_LEVEL', 'INFO')
-        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-        if log_level and log_level.upper() not in valid_levels:
-            self.warnings.append(f"日志级别无效: {log_level}，使用默认值 INFO")
+        if settings.MIN_CONCURRENCY <= 0:
+            self.errors.append("MIN_CONCURRENCY 必须大于0")
+        
+        if settings.MAX_CONCURRENCY < settings.MIN_CONCURRENCY:
+            self.errors.append("MAX_CONCURRENCY 不能小于 MIN_CONCURRENCY")
+        
+        if settings.MAX_CONCURRENCY > 50:
+            self.warnings.append("MAX_CONCURRENCY 过高可能导致性能问题")
+        
+        # 分块大小验证
+        if settings.CHUNK_SIZE <= 0 or settings.CHUNK_SIZE > 50*1024*1024:
+            self.errors.append("CHUNK_SIZE 必须在1字节到50MB之间")
+        
+        # 重试配置验证
+        if settings.MAX_RETRIES <= 0 or settings.MAX_RETRIES > 10:
+            self.errors.append("MAX_RETRIES 必须在1-10之间")
+        
+        if settings.RETRY_DELAY <= 0:
+            self.errors.append("RETRY_DELAY 必须大于0")
+        
+        # 超时配置验证
+        if settings.CONNECT_TIMEOUT <= 0:
+            self.errors.append("CONNECT_TIMEOUT 必须大于0")
+        
+        if settings.READ_TIMEOUT <= 0:
+            self.errors.append("READ_TIMEOUT 必须大于0")
     
-    def get_health_report(self) -> Dict[str, Any]:
-        """获取配置健康报告"""
-        is_valid, errors, warnings = self.validate_all()
+    def _validate_security_config(self) -> None:
+        """验证安全相关配置"""
+        # 流量限制验证
+        if settings.DEFAULT_DAILY_LIMIT < 0:
+            self.errors.append("DEFAULT_DAILY_LIMIT 不能为负数")
         
+        if settings.DEFAULT_MONTHLY_LIMIT < 0:
+            self.errors.append("DEFAULT_MONTHLY_LIMIT 不能为负数")
+        
+        if settings.DEFAULT_PER_FILE_LIMIT < 0:
+            self.errors.append("DEFAULT_PER_FILE_LIMIT 不能为负数")
+        
+        # 加密密钥验证（如果存在）
+        if settings.ENCRYPTION_KEY:
+            if len(settings.ENCRYPTION_KEY) < 16:
+                self.warnings.append("ENCRYPTION_KEY 长度过短，建议至少16位")
+    
+    def _validate_environment_config(self) -> None:
+        """验证环境相关配置"""
+        # 环境验证
+        if settings.ENVIRONMENT not in ['development', 'testing', 'production']:
+            self.errors.append("ENVIRONMENT 必须是 development、testing 或 production")
+        
+        # 日志级别验证
+        valid_log_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        if settings.LOG_LEVEL.upper() not in valid_log_levels:
+            self.errors.append(f"LOG_LEVEL 必须是 {', '.join(valid_log_levels)} 之一")
+        
+        # 健康检查端口验证
+        if not (1024 <= settings.HEALTH_CHECK_PORT <= 65535):
+            self.errors.append(f"HEALTH_CHECK_PORT 必须在1024-65535之间")
+    
+    def get_validation_report(self) -> Dict[str, Any]:
+        """获取验证报告
+        
+        Returns:
+            包含验证结果的字典
+        """
         return {
-            'is_valid': is_valid,
-            'errors': errors,
-            'warnings': warnings,
-            'error_count': len(errors),
-            'warning_count': len(warnings),
-            'required_configs_present': self._get_required_configs_status()
+            "valid": len(self.errors) == 0,
+            "errors": self.errors.copy(),
+            "warnings": self.warnings.copy(),
+            "error_count": len(self.errors),
+            "warning_count": len(self.warnings)
         }
     
-    def _get_required_configs_status(self) -> Dict[str, bool]:
-        """获取必需配置的状态"""
-        required_configs = ['API_ID', 'API_HASH', 'BOT_TOKEN', 'AUTH']
-        status = {}
+    def generate_config_template(self) -> Dict[str, Any]:
+        """生成配置模板
         
-        for config in required_configs:
-            value = getattr(self.settings, config, None)
-            status[config] = bool(value)
-        
-        return status
-
-
-def validate_environment() -> Tuple[bool, List[str], List[str]]:
-    """验证环境变量配置"""
-    from ..config import settings
-    
-    validator = ConfigValidator(settings)
-    return validator.validate_all()
-
-
-def check_config_health() -> Dict[str, Any]:
-    """检查配置健康状态"""
-    from ..config import settings
-    
-    validator = ConfigValidator(settings)
-    return validator.get_health_report()
+        Returns:
+            配置模板字典
+        """
+        return {
+            "API_ID": "",
+            "API_HASH": "",
+            "BOT_TOKEN": "",
+            "AUTH": "",
+            "MONGO_DB": "",
+            "ENVIRONMENT": "production",
+            "LOG_LEVEL": "INFO",
+            "MAX_WORKERS": 3,
+            "MIN_CONCURRENCY": 1,
+            "MAX_CONCURRENCY": 15,
+            "CHUNK_SIZE": 524288,
+            "DEFAULT_DAILY_LIMIT": 1073741824,
+            "DEFAULT_MONTHLY_LIMIT": 10737418240,
+            "DEFAULT_PER_FILE_LIMIT": 104857600,
+            "MAX_RETRIES": 3,
+            "RETRY_DELAY": 1.0,
+            "CONNECT_TIMEOUT": 30,
+            "READ_TIMEOUT": 60,
+            "HEALTH_CHECK_PORT": 8080
+        }
 
 
 def ensure_config_integrity() -> bool:
-    """确保配置完整性，如果配置无效则退出"""
-    from ..config import settings
+    """确保配置完整性
     
-    validator = ConfigValidator(settings)
-    is_valid, errors, warnings = validator.validate_all()
-    
-    if not is_valid:
-        logger.error("配置验证失败，请检查以下错误:")
-        for error in errors:
-            logger.error(f"  ❌ {error}")
+    Returns:
+        True表示配置完整且正确，False表示存在问题
+    """
+    try:
+        validator = ConfigValidator()
+        is_valid = validator.validate_all()
         
-        for warning in warnings:
-            logger.warning(f"  ⚠️  {warning}")
+        if not is_valid:
+            report = validator.get_validation_report()
+            logger.error("配置完整性检查失败，发现 %d 个错误", report["error_count"])
+            
+            # 如果是在开发环境，提供更详细的帮助信息
+            if not settings.is_production():
+                logger.info("配置模板参考:")
+                template = validator.generate_config_template()
+                for key, value in template.items():
+                    logger.info("  %s=%s", key, value)
         
+        return is_valid
+        
+    except Exception as e:
+        logger.error("配置完整性检查时发生错误: %s", e)
         return False
-    
-    if warnings:
-        logger.warning("配置验证完成，有以下警告:")
-        for warning in warnings:
-            logger.warning(f"  ⚠️  {warning}")
-    else:
-        logger.info("✅ 所有配置验证通过")
-    
-    return True
 
 
-def validate_specific_config(config_name: str, value: Any) -> Tuple[bool, str]:
-    """验证特定配置项"""
+def validate_specific_config(config_key: str, config_value: Any) -> bool:
+    """验证特定配置项
+    
+    Args:
+        config_key: 配置项键名
+        config_value: 配置项值
+        
+    Returns:
+        True表示配置项有效，False表示无效
+    """
     validators = {
-        'API_ID': lambda v: v.isdigit() if isinstance(v, str) else isinstance(v, int),
-        'API_HASH': lambda v: bool(re.match(r'^[a-f0-9]{32}$', str(v), re.IGNORECASE)),
-        'BOT_TOKEN': lambda v: bool(re.match(r'^[0-9]+:[A-Za-z0-9_-]{35}$', str(v))),
-        'AUTH': lambda v: str(v).isdigit(),
-        'TELEGRAM_PROXY_PORT': lambda v: str(v).isdigit() and 1 <= int(v) <= 65535,
-        'LOG_LEVEL': lambda v: str(v).upper() in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+        "API_ID": lambda v: isinstance(v, int) and v > 0,
+        "API_HASH": lambda v: isinstance(v, str) and len(v) == 32 and v.isalnum(),
+        "BOT_TOKEN": lambda v: isinstance(v, str) and bool(re.match(r'^\d+:\w+$', v)),
+        "AUTH": lambda v: bool(v) and isinstance(v, (int, str)),
+        "MONGO_DB": lambda v: isinstance(v, str) and v.startswith(('mongodb://', 'mongodb+srv://')),
+        "ENVIRONMENT": lambda v: v in ['development', 'testing', 'production'],
+        "LOG_LEVEL": lambda v: v.upper() in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
     }
     
-    if config_name not in validators:
-        return True, "配置项无特定验证规则"
+    if config_key not in validators:
+        logger.warning("未知的配置项: %s", config_key)
+        return True  # 未知配置项默认认为有效
     
     try:
-        is_valid = validators[config_name](value)
-        if is_valid:
-            return True, "配置项验证通过"
-        else:
-            return False, f"配置项 {config_name} 格式无效"
+        return validators[config_key](config_value)
     except Exception as e:
-        return False, f"配置项验证出错: {str(e)}"
+        logger.error("验证配置项 %s 时发生错误: %s", config_key, e)
+        return False
 
 
-class ConfigHealthMonitor:
-    """配置健康监控器"""
-    
-    def __init__(self, settings):
-        self.settings = settings
-        self.validator = ConfigValidator(settings)
-        self.last_check = None
-        self.health_history = []
-    
-    def check_health(self) -> Dict[str, Any]:
-        """检查配置健康状态"""
-        health_report = self.validator.get_health_report()
-        self.health_history.append({
-            'timestamp': self.last_check,
-            'report': health_report
-        })
-        
-        # 保留最近10次检查记录
-        if len(self.health_history) > 10:
-            self.health_history.pop(0)
-        
-        self.last_check = health_report
-        return health_report
-    
-    def get_trend(self) -> Dict[str, Any]:
-        """获取健康趋势"""
-        if len(self.health_history) < 2:
-            return {'has_trend': False, 'message': '数据不足无法分析趋势'}
-        
-        recent_reports = self.health_history[-5:]  # 最近5次检查
-        error_trend = []
-        warning_trend = []
-        
-        for report in recent_reports:
-            error_trend.append(report['error_count'])
-            warning_trend.append(report['warning_count'])
-        
-        return {
-            'has_trend': True,
-            'error_trend': error_trend,
-            'warning_trend': warning_trend,
-            'error_increasing': error_trend[-1] > error_trend[0],
-            'warning_increasing': warning_trend[-1] > warning_trend[0]
-        }
+# 创建全局验证器实例
+config_validator = ConfigValidator()
