@@ -157,59 +157,9 @@ class Settings:
             except (ValueError, TypeError) as e:
                 errors.append(f"AUTH 格式无效: {e}")
         
-        # 验证代理配置一致性 - 简化逻辑：只有当用户明确设置了代理时才验证
-        # 首先检查用户是否真的设置了代理配置（不是None、空字符串或占位符）
-        proxy_values = [
-            self.TELEGRAM_PROXY_SCHEME,
-            self.TELEGRAM_PROXY_HOST,
-            self.TELEGRAM_PROXY_PORT
-        ]
-        
-        # 检查是否有任何代理配置被设置为实际值（不是占位符）
-        has_proxy_config = False
-        for value in proxy_values:
-            if value is not None and str(value).strip():
-                # 检查是否为常见的占位符值
-                lower_value = str(value).lower()
-                is_placeholder = (
-                    'proxy_' in lower_value or
-                    'your_' in lower_value or 
-                    'example_' in lower_value or
-                    'default_' in lower_value or
-                    'host' == lower_value or
-                    'port' == lower_value or
-                    'socks5' == lower_value or  # 默认协议值
-                    'http' == lower_value or    # 默认协议值
-                    lower_value in ['1080', '8080', '3128']  # 默认端口
-                )
-                if not is_placeholder:
-                    has_proxy_config = True
-                    break
-        
-        # 只有当用户明确设置了代理配置时才进行验证
-        if has_proxy_config:
-            # 检查是否所有三个必需配置都已正确设置
-            valid_proxy_count = 0
-            for value in proxy_values:
-                if value is not None and str(value).strip():
-                    lower_value = str(value).lower()
-                    is_placeholder = (
-                        'proxy_' in lower_value or
-                        'your_' in lower_value or 
-                        'example_' in lower_value or
-                        'default_' in lower_value or
-                        'host' == lower_value or
-                        'port' == lower_value or
-                        'socks5' == lower_value or
-                        'http' == lower_value or
-                        lower_value in ['1080', '8080', '3128']
-                    )
-                    if not is_placeholder:
-                        valid_proxy_count += 1
-            
-            # 如果设置了代理但配置不完整，报错
-            if valid_proxy_count > 0 and valid_proxy_count < 3:
-                errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
+        # 代理配置验证 - 简化逻辑：代理配置是可选的，只有设置了完整的代理配置时才使用
+        # 如果用户设置了部分代理配置，会在运行时进行检测和处理
+        # 这里不进行强制验证，避免误报
         
         # 验证数据库连接字符串
         if self.MONGO_DB:
