@@ -8,4 +8,4 @@ echo "启动TG Content Bot Pro应用..."
 cd /app
 
 # 直接启动应用
-python3 main/__main__.py
+python3 -c "from main.app import main; main()"
