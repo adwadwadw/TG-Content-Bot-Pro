@@ -3,6 +3,9 @@ import sys
 import logging
 import asyncio
 import glob
+import os
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from pyrogram.types import BotCommand
 
@@ -15,6 +18,48 @@ from .config import settings
 # 设置日志
 setup_logging()
 logger = get_logger(__name__)
+
+
+# 健康检查处理器
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'OK')
+        elif self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            self.wfile.write(b'<html><body><h1>TG Content Bot Pro</h1><p>Status: Running</p><p><a href="/health">Health Check</a></p></body></html>')
+        else:
+            self.send_response(404)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'Not Found')
+    
+    def log_message(self, format, *args):
+        # 重写日志方法，避免打印到控制台
+        pass
+
+
+def start_health_server():
+    """启动健康检查HTTP服务器"""
+    port = int(os.getenv('HEALTH_CHECK_PORT', '8080'))
+    try:
+        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        logger.info(f"✅ 健康检查服务器已启动，端口: {port}")
+        server.serve_forever()
+    except Exception as e:
+        logger.error(f"❌ 启动健康检查服务器失败: {e}")
+        # 如果端口被占用，尝试使用备用端口
+        try:
+            server = HTTPServer(('0.0.0.0', 8081), HealthCheckHandler)
+            logger.info(f"✅ 健康检查服务器已启动，备用端口: 8081")
+            server.serve_forever()
+        except Exception as e2:
+            logger.error(f"❌ 启动备用端口健康检查服务器失败: {e2}")
 
 
 async def setup_commands():
@@ -178,6 +223,10 @@ async def main_async():
 
 def main():
     """主函数"""
+    # 在后台启动健康检查服务器
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+    
     try:
         # 使用单个事件循环运行整个应用
         asyncio.run(main_async())
