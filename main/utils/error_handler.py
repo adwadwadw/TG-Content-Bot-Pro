@@ -337,6 +337,20 @@ class CircuitBreaker:
         return self.state
 
 
+def handle_errors(error: Exception, context: str = "", user_id: Optional[int] = None) -> bool:
+    """处理错误的快捷函数
+    
+    Args:
+        error: 异常对象
+        context: 错误上下文描述
+        user_id: 相关用户ID（可选）
+        
+    Returns:
+        True表示错误已处理，False表示达到错误阈值
+    """
+    return error_handler.handle_error(error, context, user_id)
+
+
 # 创建全局错误处理器实例
 error_handler = ErrorHandler()
 
