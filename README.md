@@ -23,12 +23,36 @@
 
 ## 🚀 快速开始
 
-### Docker部署（推荐）
+### 一行命令安装（推荐）
 
+**一行命令完成所有部署步骤**：
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/liwoyuandiane/TG-Content-Bot-Pro/main/deploy.sh)
+```
+
+**或者使用传统方式**：
+```bash
+# 克隆项目
+git clone https://github.com/liwoyuandiane/TG-Content-Bot-Pro.git
+cd TG-Content-Bot-Pro
+
+# 一键部署
+chmod +x deploy.sh
+./deploy.sh
+```
+
+脚本会自动：
+- 检测系统环境（Docker/Python）
+- 配置环境变量
+- 选择最优部署方式（Docker优先）
+- 执行健康检查
+
+### 其他部署方式
+
+#### Docker部署
 请参考下面的Docker部署部分进行安装。
 
-### 手动部署
-
+#### 手动部署
 请参考下面的手动部署部分进行安装。
 
 **安装完成后**：
@@ -144,7 +168,34 @@ cd ~/TG-Content-Bot-Pro
 
 ## 🛠️ 部署方式
 
-### Docker部署（推荐）
+### 一键部署（推荐）
+
+```bash
+# 克隆项目
+git clone https://github.com/liwoyuandiane/TG-Content-Bot-Pro.git
+cd TG-Content-Bot-Pro
+
+# 一键部署（自动检测环境并选择最优方式）
+chmod +x deploy.sh
+./deploy.sh
+```
+
+**可选参数**：
+```bash
+# 强制使用Docker部署
+./deploy.sh docker
+
+# 强制使用手动部署
+./deploy.sh manual
+
+# 仅执行健康检查
+./deploy.sh health
+
+# 查看帮助
+./deploy.sh --help
+```
+
+### Docker部署
 
 ```bash
 # 克隆项目
