@@ -470,16 +470,9 @@ class ClientManager:
                             settings.SESSION = None
                             logger.info("已清除当前SESSION配置")
                             
-                            # 强制重启Userbot客户端（无SESSION模式）
-                            logger.info("正在重新启动Userbot客户端（无SESSION模式）...")
-                            self.userbot = Client(
-                                "saverestricted", 
-                                api_hash=settings.API_HASH, 
-                                api_id=settings.API_ID,
-                                sleep_threshold=0
-                            )
-                            await self.userbot.start()
-                            logger.info("Userbot客户端已重新启动（无SESSION模式）")
+                            # 不尝试重新启动Userbot客户端，避免在终端要求输入认证
+                            logger.info("已清除无效SESSION，Userbot客户端将保持停止状态")
+                            self.userbot = None
                             return
                             
                         except Exception as delete_error:
