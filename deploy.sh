@@ -38,6 +38,77 @@ success() {
     echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
+# 项目更新检查
+check_project_update() {
+    info "检查项目更新..."
+    
+    # 检查当前目录是否为Git仓库
+    if [ ! -d ".git" ]; then
+        log "当前目录不是Git仓库，跳过更新检查"
+        return 0
+    fi
+    
+    # 检查远程仓库配置
+    REMOTE_URL=$(git config --get remote.origin.url 2>/dev/null || echo "")
+    if [ -z "$REMOTE_URL" ]; then
+        warn "未配置远程仓库，跳过更新检查"
+        return 0
+    fi
+    
+    # 获取当前分支
+    CURRENT_BRANCH=$(git branch --show-current)
+    
+    # 获取远程最新信息
+    log "获取远程仓库最新信息..."
+    git fetch origin "$CURRENT_BRANCH" 2>/dev/null || {
+        warn "无法获取远程仓库信息，跳过更新检查"
+        return 0
+    }
+    
+    # 比较本地和远程版本
+    LOCAL_COMMIT=$(git rev-parse HEAD)
+    REMOTE_COMMIT=$(git rev-parse "origin/$CURRENT_BRANCH")
+    
+    if [ "$LOCAL_COMMIT" != "$REMOTE_COMMIT" ]; then
+        # 检测是否有未提交的更改
+        if git status --porcelain | grep -q "^[ MARC]"; then
+            warn "本地有未提交的更改，无法自动更新"
+            echo ""
+            echo "建议手动处理："
+            echo "1. 提交或暂存本地更改：git add . && git commit -m '本地更改'"
+            echo "2. 手动更新：git pull origin $CURRENT_BRANCH"
+            echo "3. 重新运行部署脚本"
+            echo ""
+            return 0
+        fi
+        
+        # 显示更新信息
+        LOCAL_DATE=$(git log -1 --format=%cd --date=relative)
+        REMOTE_DATE=$(git log -1 --format=%cd --date=relative "origin/$CURRENT_BRANCH")
+        
+        echo ""
+        echo "📥 检测到新版本可用！"
+        echo "   本地版本: $LOCAL_COMMIT (更新于 $LOCAL_DATE)"
+        echo "   远程版本: $REMOTE_COMMIT (更新于 $REMOTE_DATE)"
+        echo ""
+        
+        read -p "是否更新到最新版本？(Y/n): " -n 1 -r
+        echo
+        if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z "$REPLY" ]]; then
+            log "正在更新项目..."
+            git pull origin "$CURRENT_BRANCH"
+            success "✓ 项目已更新到最新版本"
+            return 1  # 表示需要重启服务
+        else
+            log "已跳过更新，继续使用当前版本"
+        fi
+    else
+        log "✓ 项目已是最新版本"
+    fi
+    
+    return 0
+}
+
 # 系统检测和依赖检查
 check_system_info() {
     info "检测系统信息..."
@@ -699,6 +770,9 @@ main() {
     
     # 自动克隆或切换到项目目录
     auto_clone_project
+    
+    # 检查项目更新（如果有Git仓库）
+    check_project_update
     
     # 检查依赖
     check_dependencies
