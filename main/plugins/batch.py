@@ -9,7 +9,7 @@ from ..config import settings
 from ..services.download_service import download_service
 from ..services.download_task_manager import download_task_manager
 from ..utils.media_utils import get_link
-from ..utils.error_handler import handle_errors
+from ..utils.error_handler import safe_execute
 
 from telethon import events, Button
 from pyrogram import Client
@@ -124,7 +124,7 @@ class BatchPlugin(BasePlugin):
             conv.cancel()
             self.batch_users.discard(event.sender_id)
     
-    @handle_errors(default_return=False)
+    @safe_execute(default_return=False)
     async def _run_batch(self, userbot: Client, client: Client, sender: int, 
                         link: str, range_count: int, messages_to_delete: list = None):
         """运行批量下载任务"""

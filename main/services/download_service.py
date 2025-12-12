@@ -20,7 +20,7 @@ from ..core.database import DatabaseManager
 from ..services.traffic_service import TrafficService
 from ..utils.media_utils import screenshot, progress_for_pyrogram
 from ..utils.file_manager import file_manager
-from ..utils.error_handler import handle_errors
+from ..utils.error_handler import safe_execute
 from ..exceptions.telegram import ChannelAccessException, SessionException
 from ..exceptions.validation import TrafficLimitException
 
@@ -144,7 +144,7 @@ class DownloadService:
             return False
         return True
 
-    @handle_errors(default_return=False)
+    @safe_execute(default_return=False)
     async def download_message(self, userbot: Client, client: Client, telethon_bot: TelegramClient, 
                               sender: int, edit_id: int, msg_link: str, offset: int = 0) -> bool:
         """下载单条消息
@@ -523,7 +523,7 @@ class DownloadService:
             await edit.delete()
         return True
     
-    @handle_errors(default_return=False)
+    @safe_execute(default_return=False)
     async def _cleanup_file(self, file_path: str) -> bool:
         """清理下载的文件
         

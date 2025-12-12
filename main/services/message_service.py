@@ -20,7 +20,7 @@ from ..core.database import db_manager
 from ..services.traffic_service import traffic_service
 from ..utils.media_utils import screenshot, progress_for_pyrogram
 from ..utils.file_manager import file_manager
-from ..utils.error_handler import handle_errors
+from ..utils.error_handler import safe_execute
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ class MessageService:
         self.db = db_manager
         self.traffic = traffic_service
     
-    @handle_errors(default_return=False)
+    @safe_execute(default_return=False)
     async def get_msg(self, userbot: Client, client: Client, telethon_bot: TelegramClient, 
                       sender: int, edit_id: int, msg_link: str, offset: int = 0) -> bool:
         """获取并处理单条消息
