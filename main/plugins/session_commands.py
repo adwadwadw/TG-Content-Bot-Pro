@@ -681,10 +681,16 @@ class SessionPlugin(BasePlugin):
                         del self.session_generation_tasks[user_id]
                         return
                 
-                code = text.replace('-', '').replace(' ', '')
+                # 更灵活的验证码处理：支持带空格、连字符或纯数字格式
+                code = text.replace('-', '').replace(' ', '').strip()
                 
-                if not code.isdigit() or len(code) != 5:
-                    await event.reply("❌ 验证码格式无效(应为5位数字)，请重新发送")
+                # 验证码有效性检查
+                if not code.isdigit():
+                    await event.reply("❌ 验证码只能包含数字，请重新发送")
+                    return
+                
+                if len(code) != 5:
+                    await event.reply(f"❌ 验证码应为5位数字，当前为{len(code)}位，请重新发送")
                     return
                 
                 temp_client = data.get('client')
@@ -715,10 +721,16 @@ class SessionPlugin(BasePlugin):
                 try:
                     await event.reply("⏳ 正在验证验证码...")
                     phone_code_hash = data.get('phone_code_hash')
+                    
+                    # 添加详细的参数验证日志
+                    self.logger.info(f"验证码参数 - 手机号: {data['phone']}, 验证码: {code}, 哈希: {phone_code_hash[:20]}...")
+                    
                     await temp_client.sign_in(data['phone'], code, phone_code_hash)
                 except Exception as sign_in_error:
                     # 检查是否需要密码
                     err_str = str(sign_in_error)
+                    self.logger.error(f"验证码验证失败: {err_str}")
+                    
                     if "password" in err_str.lower() or "two_factor" in err_str.lower():
                         task['step'] = 'password'
                         await event.reply(
@@ -727,11 +739,22 @@ class SessionPlugin(BasePlugin):
                         )
                         return
                     # 针对验证码过期的专门处理与引导
-                    if "PHONE_CODE_EXPIRED" in err_str or "phone_code_expired" in err_str.lower():
+                    elif "PHONE_CODE_EXPIRED" in err_str or "phone_code_expired" in err_str.lower():
                         await event.reply(
                             "❌ 验证码已过期\n\n"
                             "请发送 `resend` 重新获取新的验证码，或重新运行 /generatesession\n"
                             "提示：验证码有效期很短，请尽快输入"
+                        )
+                        return
+                    # 处理PHONE_CODE_EMPTY错误
+                    elif "PHONE_CODE_EMPTY" in err_str or "phone_code_empty" in err_str.lower():
+                        await event.reply(
+                            "❌ 验证码验证失败: 验证码参数为空或无效\n\n"
+                            "可能原因:\n"
+                            "• 验证码哈希值已过期\n"
+                            "• 网络连接问题\n"
+                            "• Telegram服务器限制\n\n"
+                            "请发送 `resend` 重新获取验证码，或重新运行 /generatesession"
                         )
                         return
                     else:
