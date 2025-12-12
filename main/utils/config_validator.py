@@ -111,32 +111,35 @@ class ConfigValidator:
         disable_proxy = os.getenv('DISABLE_PROXY', '').lower() in ['true', '1', 'yes']
         if disable_proxy:
             # 如果明确禁用了代理，跳过代理配置验证
+            logger.debug("代理已禁用，跳过代理配置验证")
             return
         
-        proxy_config = settings.get_proxy_config()
+        # 检查是否有部分代理配置（即使禁用代理，也要检查完整性）
+        proxy_attrs = [
+            os.getenv('TELEGRAM_PROXY_SCHEME'),
+            os.getenv('TELEGRAM_PROXY_HOST'),
+            os.getenv('TELEGRAM_PROXY_PORT')
+        ]
         
-        if proxy_config:
-            # 验证代理类型
-            if proxy_config["scheme"] not in ['http', 'https', 'socks4', 'socks5']:
-                self.errors.append(f"不支持的代理协议: {proxy_config['scheme']}")
-            
-            # 验证主机和端口
-            if not proxy_config["hostname"]:
-                self.errors.append("代理主机不能为空")
-            
-            if not (1 <= proxy_config["port"] <= 65535):
-                self.errors.append(f"代理端口无效: {proxy_config['port']}")
-        else:
-            # 检查是否有部分代理配置
-            proxy_attrs = [
-                settings.TELEGRAM_PROXY_SCHEME,
-                settings.TELEGRAM_PROXY_HOST,
-                settings.TELEGRAM_PROXY_PORT
-            ]
-            
-            proxy_count = sum(1 for attr in proxy_attrs if attr is not None)
-            if proxy_count > 0:
-                self.errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
+        proxy_count = sum(1 for attr in proxy_attrs if attr is not None)
+        if proxy_count > 0 and proxy_count < 3:
+            self.errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
+            return
+        
+        # 如果有完整的代理配置，进行详细验证
+        if proxy_count == 3:
+            proxy_config = settings.get_proxy_config()
+            if proxy_config:
+                # 验证代理类型
+                if proxy_config["scheme"] not in ['http', 'https', 'socks4', 'socks5']:
+                    self.errors.append(f"不支持的代理协议: {proxy_config['scheme']}")
+                
+                # 验证主机和端口
+                if not proxy_config["hostname"]:
+                    self.errors.append("代理主机不能为空")
+                
+                if not (1 <= proxy_config["port"] <= 65535):
+                    self.errors.append(f"代理端口无效: {proxy_config['port']}")
     
     def _validate_performance_config(self) -> None:
         """验证性能相关配置"""
