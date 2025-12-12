@@ -693,10 +693,8 @@ class SessionPlugin(BasePlugin):
                         await event.reply(error_msg)
                         return
                 
-                # 更灵活的验证码处理：支持带空格、连字符或纯数字格式
-                # 先去除所有非数字字符，但保留原始文本用于调试
-                original_code = text.strip()
-                code = re.sub(r'[^0-9]', '', text)
+                # 简单的验证码处理：支持带空格、连字符或纯数字格式
+                code = text.replace('-', '').replace(' ', '').strip()
                 
                 # 验证码有效性检查
                 if not code.isdigit():
@@ -706,9 +704,6 @@ class SessionPlugin(BasePlugin):
                 if len(code) != 5:
                     await event.reply(f"❌ 验证码应为5位数字，当前为{len(code)}位，请重新发送")
                     return
-                
-                # 记录原始验证码格式用于调试
-                self.logger.info(f"验证码处理 - 原始: '{original_code}', 处理后: '{code}'")
                 
                 temp_client = data.get('client')
                 if not temp_client:
@@ -748,10 +743,6 @@ class SessionPlugin(BasePlugin):
                     # 添加详细的参数验证日志
                     self.logger.info(f"验证码参数 - 手机号: {data['phone']}, 验证码: {code}, 哈希: {phone_code_hash[:20]}...")
                     
-                    # 检查验证码哈希是否有效
-                    if not phone_code_hash or len(phone_code_hash) < 10:
-                        raise Exception("验证码哈希无效或已过期")
-                    
                     await temp_client.sign_in(data['phone'], code, phone_code_hash)
                 except Exception as sign_in_error:
                     # 检查是否需要密码
@@ -773,52 +764,12 @@ class SessionPlugin(BasePlugin):
                             "提示：验证码有效期很短，请尽快输入"
                         )
                         return
-                    # 处理PHONE_CODE_EMPTY错误 - 尝试重新发送验证码
-                    elif "PHONE_CODE_EMPTY" in err_str or "phone_code_empty" in err_str.lower():
-                        # 尝试重新发送验证码而不是完全重新开始
-                        try:
-                            await event.reply("⏳ 验证码哈希已过期，正在重新发送验证码...")
-                            
-                            # 重新发送验证码
-                            phone_number = data.get('phone')
-                            sent_code = await temp_client.send_code(phone_number)
-                            
-                            # 更新验证码哈希
-                            data['phone_code_hash'] = sent_code.phone_code_hash
-                            data['code_sent_time'] = time.time()
-                            data['original_timeout'] = sent_code.timeout
-                            
-                            await event.reply(
-                                "✅ 新的验证码已发送，请重新输入收到的验证码\n\n"
-                                "提示：验证码哈希已更新，请使用新收到的验证码"
-                            )
-                            return
-                        except Exception as resend_error:
-                            self.logger.error(f"重新发送验证码失败: {resend_error}")
-                            await event.reply(
-                                "❌ 重新发送验证码失败，验证码会话已完全过期\n\n"
-                                "请使用 /generatesession 重新开始生成流程"
-                            )
-                            # 清理客户端连接和任务状态
-                            if temp_client:
-                                try:
-                                    await temp_client.disconnect()
-                                except Exception:
-                                    pass
-                            # 取消标记用户会话状态
-                            from .message_handler import message_handler_plugin
-                            message_handler_plugin.mark_user_in_conversation(user_id, False)
-                            del self.session_generation_tasks[user_id]
-                            return
                     else:
-                        # 通用错误处理，但提供重试选项
-                        error_msg = f"❌ 验证码验证失败: {err_str}\n\n"
-                        error_msg += "您可以尝试：\n"
-                        error_msg += "• 发送 `resend` 重新获取验证码\n"
-                        error_msg += "• 使用 /generatesession 重新开始\n"
-                        error_msg += "• 检查网络连接是否稳定"
-                        
-                        await event.reply(error_msg)
+                        # 其他错误（包括PHONE_CODE_EMPTY）直接提示用户重试
+                        await event.reply(
+                            f"❌ 验证码验证失败: {err_str}\n\n"
+                            "请发送 `resend` 重新获取验证码，或重新运行 /generatesession"
+                        )
                         return
                 
                 # 登录成功，生成SESSION
