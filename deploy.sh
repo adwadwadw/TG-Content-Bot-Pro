@@ -173,12 +173,12 @@ SESSION=your_pyrogram_session_string
 FORCESUB=your_channel_username
 HEALTH_CHECK_PORT=8080
 
-# 代理配置（如需要）
-TELEGRAM_PROXY_SCHEME=socks5
-TELEGRAM_PROXY_HOST=proxy_host
-TELEGRAM_PROXY_PORT=1080
-TELEGRAM_PROXY_USERNAME=proxy_user
-TELEGRAM_PROXY_PASSWORD=proxy_pass
+# 代理配置（如需要，请取消注释并填写实际值）
+# TELEGRAM_PROXY_SCHEME=socks5
+# TELEGRAM_PROXY_HOST=proxy_host
+# TELEGRAM_PROXY_PORT=1080
+# TELEGRAM_PROXY_USERNAME=proxy_user
+# TELEGRAM_PROXY_PASSWORD=proxy_pass
 EOF
             warn "✓ 已创建基础.env文件（请手动配置）"
         fi

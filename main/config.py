@@ -156,14 +156,25 @@ class Settings:
             except (ValueError, TypeError) as e:
                 errors.append(f"AUTH 格式无效: {e}")
         
-        # 验证代理配置一致性
+        # 验证代理配置一致性（排除占位符值）
+        placeholder_values = [
+            'proxy_host', 'proxy_user', 'proxy_pass',
+            'your_proxy_host', 'your_proxy_user', 'your_proxy_pass'
+        ]
+        
         proxy_configs = [
             self.TELEGRAM_PROXY_SCHEME,
             self.TELEGRAM_PROXY_HOST,
             self.TELEGRAM_PROXY_PORT
         ]
-        proxy_count = sum(1 for config in proxy_configs if config is not None)
-        if proxy_count > 0 and proxy_count < 3:
+        
+        # 只计算非空且不是占位符的配置项
+        valid_proxy_count = sum(1 for config in proxy_configs if 
+                               config is not None and 
+                               str(config).strip() not in placeholder_values)
+        
+        # 如果有配置但数量不足3个，说明配置不完整
+        if valid_proxy_count > 0 and valid_proxy_count < 3:
             errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
         
         # 验证数据库连接字符串
