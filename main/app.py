@@ -199,16 +199,20 @@ async def main_async():
         await startup()
         
         # 检查客户端是否已初始化
-        if client_manager.bot is not None and client_manager.bot.is_connected():
+        if client_manager.bot is not None and hasattr(client_manager.bot, 'is_connected') and client_manager.bot.is_connected():
             logger.info("🚀 机器人开始监听消息...")
             # 运行主客户端直到断开连接
             await client_manager.bot.run_until_disconnected()
         else:
             logger.warning("⚠️ 客户端未初始化或未连接，机器人将以降级模式运行...")
+            logger.info("📡 健康检查服务器已启动，可以访问 http://localhost:8080/health 检查服务状态")
+            logger.info("⏰ 应用将保持运行，等待客户端连接...")
+            
             # 保持应用运行，即使客户端未连接
             try:
                 while True:
                     await asyncio.sleep(60)  # 每分钟检查一次
+                    logger.debug("应用仍在运行...")
             except KeyboardInterrupt:
                 logger.info("收到中断信号，正在关闭...")
             
