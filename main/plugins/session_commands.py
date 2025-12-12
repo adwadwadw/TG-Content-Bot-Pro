@@ -744,10 +744,18 @@ class SessionPlugin(BasePlugin):
                     # 添加详细的参数验证日志
                     self.logger.info(f"验证码参数 - 手机号: {data['phone']}, 验证码: {code}, 哈希: {phone_code_hash[:20]}...")
                     
-                    await temp_client.sign_in(data['phone'], code, phone_code_hash)
+                    # 使用更稳定的sign_in方法调用
+                    # Pyrogram 1.x版本使用更稳定的参数传递方式
+                    await temp_client.sign_in(
+                        phone_number=data['phone'],
+                        phone_code=code,
+                        phone_code_hash=phone_code_hash
+                    )
+                        
                 except Exception as sign_in_error:
                     # 检查是否需要密码
                     err_str = str(sign_in_error)
+                    self.logger.error(f"验证码验证失败: {err_str}")
                     
                     if "password" in err_str.lower() or "two_factor" in err_str.lower(): 
                         task['step'] = 'password'
