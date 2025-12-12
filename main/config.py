@@ -140,7 +140,8 @@ class Settings:
         if not self.BOT_TOKEN:
             errors.append("BOT_TOKEN 不能为空")
         elif not re.match(r'^\d+:\w+$', self.BOT_TOKEN):
-            errors.append("BOT_TOKEN 格式无效，应为 '数字:字符串' 格式")
+            # 添加调试信息，帮助识别问题
+            errors.append(f"BOT_TOKEN 格式无效，应为 '数字:字符串' 格式。当前值: '{self.BOT_TOKEN[:20]}...' 长度: {len(self.BOT_TOKEN)}")
             
         if not self.AUTH:
             errors.append("AUTH 不能为空")
@@ -156,26 +157,37 @@ class Settings:
             except (ValueError, TypeError) as e:
                 errors.append(f"AUTH 格式无效: {e}")
         
-        # 验证代理配置一致性（排除占位符值）
-        placeholder_values = [
-            'proxy_host', 'proxy_user', 'proxy_pass',
-            'your_proxy_host', 'your_proxy_user', 'your_proxy_pass'
-        ]
-        
+        # 验证代理配置一致性（只有当实际设置了代理时才验证）
         proxy_configs = [
             self.TELEGRAM_PROXY_SCHEME,
             self.TELEGRAM_PROXY_HOST,
             self.TELEGRAM_PROXY_PORT
         ]
         
-        # 只计算非空且不是占位符的配置项
-        valid_proxy_count = sum(1 for config in proxy_configs if 
-                               config is not None and 
-                               str(config).strip() not in placeholder_values)
+        # 检查是否有任何代理配置被设置（排除None、空字符串和占位符）
+        placeholder_patterns = [
+            'proxy_', 'your_', 'example_', 'default_', 'host', 'port', 'user', 'pass'
+        ]
         
-        # 如果有配置但数量不足3个，说明配置不完整
-        if valid_proxy_count > 0 and valid_proxy_count < 3:
-            errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
+        has_proxy_config = False
+        for config in proxy_configs:
+            if config is not None and str(config).strip():
+                # 检查是否为占位符值
+                config_lower = str(config).lower()
+                is_placeholder = any(pattern in config_lower for pattern in placeholder_patterns)
+                if not is_placeholder:
+                    has_proxy_config = True
+                    break
+        
+        # 只有当用户实际设置了代理配置时才进行完整验证
+        if has_proxy_config:
+            valid_proxy_count = sum(1 for config in proxy_configs if 
+                                   config is not None and 
+                                   str(config).strip() and
+                                   not any(pattern in str(config).lower() for pattern in placeholder_patterns))
+            
+            if valid_proxy_count < 3:
+                errors.append("代理配置不完整，必须同时设置 SCHEME、HOST 和 PORT")
         
         # 验证数据库连接字符串
         if self.MONGO_DB:
