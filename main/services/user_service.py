@@ -38,6 +38,10 @@ class UserService:
         """获取总用户数"""
         return await self.db.get_all_users_count()
     
+    async def get_total_users(self) -> int:
+        """获取总用户数（兼容性别名）"""
+        return await self.get_all_users_count()
+    
     async def get_user_stats(self, user_id: int) -> Optional[Dict[str, Any]]:
         """获取用户统计信息"""
         return await self.db.get_user_stats(user_id)
@@ -57,6 +61,10 @@ class UserService:
     async def is_user_authorized(self, user_id: int) -> bool:
         """检查用户是否被授权"""
         return await self.db.is_user_authorized(user_id)
+    
+    async def get_total_downloads(self) -> int:
+        """获取总下载数"""
+        return await self.db.get_total_downloads()
 
 
 # 全局用户服务实例

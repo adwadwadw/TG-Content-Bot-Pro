@@ -448,9 +448,7 @@ class ClientManager:
                         "auth key not found", 
                         "404", 
                         "old session", 
-                        "session string",
-                        "transport error",
-                        "server sent"
+                        "session string"
                     ]
                     is_session_error = any(err in error_msg for err in session_errors)
                     logger.debug(f"是否为SESSION错误: {is_session_error}")

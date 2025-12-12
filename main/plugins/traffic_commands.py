@@ -266,7 +266,7 @@ class TrafficPlugin(BasePlugin):
                 return
             
             # 获取用户统计
-            total_users = await user_service.get_total_users()
+            total_users = await user_service.get_all_users_count()
             
             # 获取下载统计
             total_downloads = await user_service.get_total_downloads()
