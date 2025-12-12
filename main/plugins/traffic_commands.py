@@ -36,19 +36,19 @@ class TrafficPlugin(BasePlugin):
     
     async def on_unload(self):
         """插件卸载时移除事件处理器"""
-        # 移除事件处理器
+        # 移除事件处理器 - 不再使用from_users限制，在handler内进行权限检查
         client_manager.bot.remove_event_handler(self._traffic_stats, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/traffic'))
+            incoming=True, pattern='/traffic'))
         client_manager.bot.remove_event_handler(self._total_traffic_stats, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/totaltraffic'))
+            incoming=True, pattern='/totaltraffic'))
         client_manager.bot.remove_event_handler(self._bot_stats, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/stats'))
+            incoming=True, pattern='/stats'))
         client_manager.bot.remove_event_handler(self._download_history, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/history'))
+            incoming=True, pattern='/history'))
         client_manager.bot.remove_event_handler(self._set_traffic_limit, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/setlimit'))
+            incoming=True, pattern='/setlimit'))
         client_manager.bot.remove_event_handler(self._reset_traffic, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/resettraffic'))
+            incoming=True, pattern='/resettraffic'))
         
         self.logger.info("流量管理插件事件处理器已移除")
     

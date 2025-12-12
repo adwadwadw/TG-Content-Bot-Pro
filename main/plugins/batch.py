@@ -24,21 +24,21 @@ class BatchPlugin(BasePlugin):
     
     async def on_load(self):
         """插件加载时注册事件处理器"""
-        # 注册命令处理器
+        # 注册命令处理器 - 不再使用from_users限制，在handler内进行权限检查
         client_manager.bot.add_event_handler(self._cancel_command, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/cancel'))
+            incoming=True, pattern='/cancel'))
         client_manager.bot.add_event_handler(self._batch_command, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/batch'))
+            incoming=True, pattern='/batch'))
         
         self.logger.info("批量下载插件事件处理器已注册")
     
     async def on_unload(self):
         """插件卸载时移除事件处理器"""
-        # 移除事件处理器
+        # 移除事件处理器 - 不再使用from_users限制，在handler内进行权限检查
         client_manager.bot.remove_event_handler(self._cancel_command, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/cancel'))
+            incoming=True, pattern='/cancel'))
         client_manager.bot.remove_event_handler(self._batch_command, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/batch'))
+            incoming=True, pattern='/batch'))
         
         self.logger.info("批量下载插件事件处理器已移除")
     

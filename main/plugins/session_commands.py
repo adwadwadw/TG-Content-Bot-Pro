@@ -48,25 +48,25 @@ class SessionPlugin(BasePlugin):
     
     async def on_unload(self):
         """插件卸载时移除事件处理器"""
-        # 移除事件处理器
+        # 移除事件处理器 - 不再使用from_users限制，在handler内进行权限检查
         client_manager.bot.remove_event_handler(self._add_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/addsession"))
+            incoming=True, pattern="/addsession"))
         client_manager.bot.remove_event_handler(self._delete_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/delsession"))
+            incoming=True, pattern="/delsession"))
         client_manager.bot.remove_event_handler(self._list_sessions, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/sessions"))
+            incoming=True, pattern="/sessions"))
         client_manager.bot.remove_event_handler(self._view_session_callback, events.CallbackQuery(
             pattern=rb"view_session:\d+"))
         client_manager.bot.remove_event_handler(self._my_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/mysession"))
+            incoming=True, pattern="/mysession"))
         client_manager.bot.remove_event_handler(self._generate_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/generatesession"))
+            incoming=True, pattern="/generatesession"))
         client_manager.bot.remove_event_handler(self._cancel_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/cancelsession"))
+            incoming=True, pattern="/cancelsession"))
         client_manager.bot.remove_event_handler(self._retry_session, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern="/retry_session"))
+            incoming=True, pattern="/retry_session"))
         client_manager.bot.remove_event_handler(self._handle_text_input, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, func=lambda e: e.text and not e.text.startswith('/')))
+            incoming=True, func=lambda e: e.text and not e.text.startswith('/')))
         
         self.logger.info("会话管理插件事件处理器已移除")
     

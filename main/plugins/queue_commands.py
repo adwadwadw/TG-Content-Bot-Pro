@@ -15,18 +15,18 @@ class QueuePlugin(BasePlugin):
     async def on_load(self):
         """插件加载时注册事件处理器"""
         client_manager.bot.add_event_handler(self._queue_status, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/queue'))
+            incoming=True, pattern='/queue'))
         client_manager.bot.add_event_handler(self._reset_rate, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/resetrate'))
+            incoming=True, pattern='/resetrate'))
         
         self.logger.info("队列管理插件事件处理器已注册")
     
     async def on_unload(self):
         """插件卸载时移除事件处理器"""
         client_manager.bot.remove_event_handler(self._queue_status, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/queue'))
+            incoming=True, pattern='/queue'))
         client_manager.bot.remove_event_handler(self._reset_rate, events.NewMessage(
-            incoming=True, from_users=settings.AUTH, pattern='/resetrate'))
+            incoming=True, pattern='/resetrate'))
         
         self.logger.info("队列管理插件事件处理器已移除")
     
