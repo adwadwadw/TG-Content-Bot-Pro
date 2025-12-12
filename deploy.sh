@@ -271,6 +271,37 @@ health_check() {
     return 1
 }
 
+# 自动克隆项目
+auto_clone_project() {
+    local project_dir="TG-Content-Bot-Pro"
+    
+    # 如果当前目录不是项目根目录，自动克隆
+    if [ ! -f "README.md" ] || [ ! -f "docker-compose.yml" ]; then
+        log "检测到当前目录不是项目根目录，自动克隆项目..."
+        
+        # 检查是否已经克隆过
+        if [ -d "$project_dir" ]; then
+            log "项目目录已存在，切换到项目目录..."
+            cd "$project_dir"
+        else
+            # 克隆项目
+            if git clone https://github.com/liwoyuandiane/TG-Content-Bot-Pro.git "$project_dir"; then
+                log "✓ 项目克隆成功"
+                cd "$project_dir"
+            else
+                error "项目克隆失败，请检查网络连接"
+            fi
+        fi
+    fi
+    
+    # 再次确认是否在项目根目录
+    if [ ! -f "README.md" ] || [ ! -f "docker-compose.yml" ]; then
+        error "无法定位到项目根目录，请手动检查"
+    fi
+    
+    log "✓ 当前目录：$(pwd)"
+}
+
 # 主函数
 main() {
     echo ""
@@ -279,10 +310,8 @@ main() {
     echo "========================================"
     echo ""
     
-    # 检查当前目录
-    if [ ! -f "README.md" ] || [ ! -f "docker-compose.yml" ]; then
-        error "请在项目根目录运行此脚本"
-    fi
+    # 自动克隆或切换到项目目录
+    auto_clone_project
     
     # 检查依赖
     check_dependencies
