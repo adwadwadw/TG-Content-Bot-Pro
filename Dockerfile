@@ -10,9 +10,9 @@ WORKDIR /app
 # 暴露健康检查端口
 EXPOSE 8080
 
-# 健康检查 - 检查应用进程状态
+# 健康检查 - 使用HTTP健康检查接口
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD ps aux | grep -q "python.*main" || exit 1
+    CMD curl -f http://localhost:8080/health || exit 1
 
 # 启动命令
 CMD ["sh", "start.sh"]
