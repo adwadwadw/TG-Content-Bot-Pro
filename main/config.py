@@ -85,6 +85,9 @@ class Settings:
         # 连接超时配置
         self.CONNECT_TIMEOUT: int = self._get_config("CONNECT_TIMEOUT", default=30, cast=int)
         self.READ_TIMEOUT: int = self._get_config("READ_TIMEOUT", default=60, cast=int)
+        
+        # 下载服务配置
+        self.DISABLE_DOWNLOAD_UPLOAD: bool = self._get_config("DISABLE_DOWNLOAD_UPLOAD", default=True, cast=bool)
     
     def _get_config(self, key: str, default: Any = undefined, cast: Optional[Any] = None) -> Any:
         """获取配置值
