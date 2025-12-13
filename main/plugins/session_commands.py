@@ -580,11 +580,10 @@ class SessionPlugin(BasePlugin):
                     f"temp_session_{user_id}",
                     api_id=data['api_id'],
                     api_hash=data['api_hash'],
-                    app_version="10.2.0",
-                    device_model="iPhone 15 Pro Max",
-                    system_version="iOS 17.5",
-                    lang_code="en",
-                    sleep_threshold=0
+                    app_version="11.0.0",
+                    device_model="iPhone 16 Pro",
+                    system_version="iOS 18.0",
+                    lang_code="en"
                 )
                 
                 try:
