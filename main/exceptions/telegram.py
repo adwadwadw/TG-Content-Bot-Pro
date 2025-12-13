@@ -18,3 +18,9 @@ class ChannelAccessException(BaseBotException):
     """频道访问异常"""
     def __init__(self, message: str):
         super().__init__(message, "CHANNEL_ACCESS_ERROR")
+
+
+class DownloadFailedException(BaseBotException):
+    """下载失败异常"""
+    def __init__(self, message: str):
+        super().__init__(message, "DOWNLOAD_FAILED_ERROR")
