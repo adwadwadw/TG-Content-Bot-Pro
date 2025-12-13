@@ -541,8 +541,7 @@ class SessionPlugin(BasePlugin):
                     f"temp_session_{user_id}",
                     api_id=data['api_id'],
                     api_hash=data['api_hash'],
-                    device_model="TG-Content-Bot Session Generator",
-                    in_memory=True
+                    device_model="TG-Content-Bot Session Generator"
                 )
                 
                 try:
