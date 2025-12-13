@@ -3,15 +3,14 @@
 提供现代化的应用架构，包括依赖注入、模块化管理和生命周期管理。
 """
 import asyncio
-import inspect
-from typing import Dict, Any, List, Optional, Type, Callable
+from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 
 from ..utils.logging_config import get_logger
-from ..utils.error_handler import error_handler, safe_execute
-from ..utils.performance_monitor import performance_monitor, performance_decorator
+from ..utils.error_handler import safe_execute
+from ..utils.performance_monitor import performance_monitor
 
 logger = get_logger(__name__)
 
@@ -108,8 +107,8 @@ class Application:
         service_info = self.services.get(name)
         return service_info.service if service_info else None
     
-    async def initialize_services(self) -> None:
-        """初始化所有服务"""
+    async def start(self) -> None:
+        """启动应用，初始化所有服务"""
         self.state = ServiceState.INITIALIZING
         self._startup_time = asyncio.get_event_loop().time()
         
@@ -165,8 +164,8 @@ class Application:
                 service_info.name, record.duration
             )
     
-    async def shutdown_services(self) -> None:
-        """关闭所有服务"""
+    async def stop(self) -> None:
+        """停止应用，关闭所有服务"""
         if self.state in [ServiceState.STOPPING, ServiceState.STOPPED]:
             return
         
@@ -239,28 +238,6 @@ class Application:
             },
             "services_health": services_health
         }
-    
-    def get_service_dependency_graph(self) -> Dict[str, Any]:
-        """获取服务依赖图"""
-        graph = {
-            "nodes": [],
-            "edges": []
-        }
-        
-        for service_info in self.services.values():
-            graph["nodes"].append({
-                "id": service_info.name,
-                "priority": service_info.priority,
-                "state": service_info.state.value
-            })
-            
-            for dep_name in service_info.dependencies:
-                graph["edges"].append({
-                    "from": dep_name,
-                    "to": service_info.name
-                })
-        
-        return graph
 
 
 class ConfigService(Service):
@@ -283,7 +260,7 @@ class ConfigService(Service):
         
         # 记录配置摘要（不包含敏感信息）
         safe_config = settings.get_safe_summary()
-        self.logger.info("配置摘要: %s", safe_config)
+        self.logger.debug("配置摘要: %s", safe_config)
     
     async def shutdown(self) -> None:
         """关闭配置服务"""
@@ -302,8 +279,8 @@ class DatabaseService(Service):
         
         self.logger.info("初始化数据库连接")
         
-        # 这里可以添加数据库连接池初始化等逻辑
-        # 当前项目中的数据库管理在 core/database.py 中
+        # 初始化数据库连接
+        await db_manager.initialize()
         
         self.logger.info("数据库服务初始化完成")
     
@@ -312,7 +289,10 @@ class DatabaseService(Service):
         from .database import db_manager
         
         self.logger.info("关闭数据库连接")
-        # 这里可以添加数据库连接关闭逻辑
+        
+        # 关闭数据库连接
+        await db_manager.close()
+        
         self.logger.info("数据库服务已关闭")
 
 
@@ -404,7 +384,7 @@ class TaskQueueService(Service):
 app = Application("TG-Content-Bot-Pro")
 
 
-def create_default_application() -> Application:
+def create_default_app() -> Application:
     """创建默认应用实例
     
     Returns:

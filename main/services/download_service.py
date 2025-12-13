@@ -1,568 +1,253 @@
-"""下载服务模块
+"""视频下载服务模块
 
-该模块提供消息下载和文件处理功能，支持从Telegram频道下载各种类型的媒体文件。
+提供多平台视频下载功能，基于 yt-dlp 实现。
 """
+import os
 import asyncio
 import logging
-import os
-import time
-from typing import Optional, Tuple, Any, Union
+import tempfile
+from typing import Optional, Dict, Any, Tuple
+from pathlib import Path
+from urllib.parse import urlparse
 
-from pyrogram import Client
-from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
-from telethon import TelegramClient
-from telethon.tl.types import DocumentAttributeVideo
-from ethon.pyfunc import video_metadata
-from ethon.telefunc import fast_upload
+import yt_dlp
 
-from ..core.database import DatabaseManager
-from ..services.traffic_service import TrafficService
-from ..utils.media_utils import screenshot, progress_for_pyrogram
-from ..utils.file_manager import file_manager
-from ..utils.error_handler import safe_execute
-from ..exceptions.telegram import ChannelAccessException, SessionException
-from ..exceptions.validation import TrafficLimitException
+from ..config import settings
+from ..utils.logging_config import get_logger
+from ..utils.file_manager import FileManager
+from ..utils.video_processor import video_processor
+from ..exceptions.telegram import DownloadFailedException
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
-class DownloadService:
-    """下载服务
+class VideoDownloader:
+    """视频下载器"""
     
-    负责处理Telegram消息的下载、文件处理和上传操作。
-    支持多种媒体类型和不同的上传策略。
-    """
+    def __init__(self):
+        self.file_manager = FileManager()
+        self.temp_dir = tempfile.mkdtemp()
+        self.progress_callbacks = {}
+        
+    def _download_progress_hook(self, d: Dict[str, Any]) -> None:
+        """下载进度钩子"""
+        if d['status'] == 'downloading':
+            # 记录下载进度
+            percent = d.get('_percent_str', 'N/A')
+            speed = d.get('_speed_str', 'N/A')
+            eta = d.get('_eta_str', 'N/A')
+            filename = d.get('filename', '未知文件')
+            logger.debug(f"下载进度: {percent} | 速度: {speed} | 剩余时间: {eta}")
+            
+            # 调用进度回调
+            callback = self.progress_callbacks.get(filename)
+            if callback:
+                callback({
+                    'status': 'downloading',
+                    'percent': percent,
+                    'speed': speed,
+                    'eta': eta,
+                    'filename': filename
+                })
+        elif d['status'] == 'error':
+            error_msg = d.get('error', '未知错误')
+            logger.error(f"下载错误: {error_msg}")
+            
+            # 调用进度回调
+            filename = d.get('filename', '未知文件')
+            callback = self.progress_callbacks.get(filename)
+            if callback:
+                callback({
+                    'status': 'error',
+                    'error': error_msg,
+                    'filename': filename
+                })
+        elif d['status'] == 'finished':
+            filename = d.get('filename', '未知文件')
+            logger.info(f"下载完成: {filename}")
+            
+            # 调用进度回调
+            callback = self.progress_callbacks.get(filename)
+            if callback:
+                callback({
+                    'status': 'finished',
+                    'filename': filename
+                })
     
-    def __init__(self) -> None:
-        """初始化下载服务"""
-        self.db: DatabaseManager = db_manager
-        self.traffic: TrafficService = traffic_service
-    
-    def _parse_message_link(self, msg_link: str, offset: int = 0) -> tuple:
-        """解析消息链接
+    async def download_video(self, url: str, quality: str = 'best', progress_callback: Optional[callable] = None) -> Tuple[str, str, int, float]:
+        """下载视频
         
         Args:
-            msg_link: 消息链接
-            offset: 消息ID偏移量
+            url: 视频链接
+            quality: 视频质量，可选值：best, worst, bestvideo, bestaudio
+            progress_callback: 进度回调函数，接收下载进度信息
             
         Returns:
-            tuple: (chat_id, message_id, is_private_chat)
-        """
-        # 处理链接中的参数
-        if "?single" in msg_link:
-            msg_link = msg_link.split("?single")[0]
-        
-        msg_id = int(msg_link.split("/")[-1]) + offset
-        
-        if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
-            if 't.me/b/' in msg_link:
-                chat = str(msg_link.split("/")[-2])
-                is_private = True
-            else:
-                chat = int('-100' + str(msg_link.split("/")[-2]))
-                is_private = True
-        else:
-            chat = msg_link.split("t.me")[1].split("/")[1]
-            is_private = False
+            视频文件路径, 视频标题, 文件大小, 视频时长
             
-        return chat, msg_id, is_private
-
-    async def _check_userbot_availability(self, userbot: Client, client: Client, 
-                                         sender: int, edit_id: int) -> bool:
-        """检查userbot是否可用
-        
-        Args:
-            userbot: Pyrogram用户客户端
-            client: Pyrogram机器人客户端
-            sender: 发送者用户ID
-            edit_id: 编辑消息ID
-            
-        Returns:
-            bool: userbot是否可用
-        """
-        if userbot is None:
-            if edit_id > 0:
-                await client.edit_message_text(
-                    sender, edit_id, 
-                    "❌ 未配置 SESSION，无法访问受限内容\n\n使用 /addsession 添加 SESSION"
-                )
-            return False
-        return True
-
-    async def _handle_text_message(self, msg, client: Client, sender: int, 
-                                  edit_id: int, edit) -> bool:
-        """处理文本消息
-        
-        Args:
-            msg: 消息对象
-            client: Pyrogram客户端
-            sender: 发送者用户ID
-            edit_id: 编辑消息ID
-            edit: 编辑消息对象
-            
-        Returns:
-            bool: 处理是否成功
-        """
-        if msg.text:
-            if edit_id > 0:
-                edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-            await client.send_message(sender, msg.text, parse_mode="markdown")
-            if edit_id > 0 and edit:
-                await edit.delete()
-            return True
-        else:
-            if edit_id > 0:
-                await client.edit_message_text(sender, edit_id, "❌ 消息为空")
-            return False
-
-    async def _check_traffic_limit(self, sender: int, file_size: int, 
-                                  client: Client, edit_id: int, 
-                                  msg_link: str, msg_id: int, chat: str) -> bool:
-        """检查流量限制
-        
-        Args:
-            sender: 发送者用户ID
-            file_size: 文件大小
-            client: Pyrogram客户端
-            edit_id: 编辑消息ID
-            msg_link: 消息链接
-            msg_id: 消息ID
-            chat: 聊天ID
-            
-        Returns:
-            bool: 是否允许下载
-        """
-        can_download, limit_msg = await self.traffic.check_traffic_limit(sender, file_size)
-        if not can_download:
-            if edit_id > 0:
-                await client.edit_message_text(
-                    sender, edit_id, 
-                    f"❌ {limit_msg}\n\n使用 /traffic 查看流量使用情况"
-                )
-            await self.db.add_download(sender, msg_link, msg_id, str(chat), "限制", file_size, "failed")
-            return False
-        return True
-
-    @safe_execute(default_return=False)
-    async def download_message(self, userbot: Client, client: Client, telethon_bot: TelegramClient, 
-                              sender: int, edit_id: int, msg_link: str, offset: int = 0) -> bool:
-        """下载单条消息
-        
-        Args:
-            userbot: Pyrogram用户客户端
-            client: Pyrogram机器人客户端
-            telethon_bot: Telethon机器人客户端
-            sender: 发送者用户ID
-            edit_id: 编辑消息ID
-            msg_link: 消息链接
-            offset: 消息ID偏移量
-            
-        Returns:
-            bool: 下载是否成功
-        """
-        # 检查 userbot 是否可用
-        if not await self._check_userbot_availability(userbot, client, sender, edit_id):
-            return False
-        
-        edit = ""
-        round_message = False
-        
-        # 解析消息链接
-        chat, msg_id, is_private = self._parse_message_link(msg_link, offset)
-        height, width, duration, thumb_path = 90, 90, 0, None
-        
-        if is_private:
-            file = ""
-            try:
-                msg = await userbot.get_messages(chat, msg_id)
-                if msg.media:
-                    if msg.media == MessageMediaType.WEB_PAGE:
-                        if edit_id > 0:
-                            edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-                        if msg.text:
-                            await client.send_message(sender, msg.text, parse_mode="markdown")
-                        if edit_id > 0 and edit:
-                            await edit.delete()
-                        return True
-                
-                if not msg.media:
-                    return await self._handle_text_message(msg, client, sender, edit_id, edit)
-                
-                if edit_id > 0:
-                    edit = await client.edit_message_text(sender, edit_id, "尝试下载...")
-                
-                # 获取文件大小并检查流量限制
-                file_size = self._get_file_size(msg)
-                
-                # 检查流量限制
-                if not await self._check_traffic_limit(sender, file_size, client, edit_id, 
-                                                      msg_link, msg_id, chat):
-                    return False
-                
-                file = await userbot.download_media(
-                    msg,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        client,
-                        "**DOWNLOADING:**\n",
-                        edit,
-                        time.time()
-                    )
-                )
-                
-                if not file or not os.path.exists(file):
-                    if edit_id > 0:
-                        await client.edit_message_text(sender, edit_id, "❌ 下载失败")
-                    await self.db.add_download(sender, msg_link, msg_id, str(chat), "download_error", file_size, "failed")
-                    return False
-                    
-                logger.info(f"下载完成: {file}")
-                if edit_id > 0:
-                    await client.edit_message_text(sender, edit_id, '准备上传！')
-                
-                caption = None
-                if msg.caption is not None:
-                    caption = msg.caption
-                
-                if msg.media == MessageMediaType.VIDEO_NOTE:
-                    round_message = True
-                    logger.info("获取视频元数据")
-                    data = video_metadata(file)
-                    height, width, duration = data["height"], data["width"], data["duration"]
-                    logger.info(f'视频信息: 时长={duration}, 宽={width}, 高={height}')
-                    try:
-                        thumb_path = await screenshot(file, duration, sender)
-                    except Exception:
-                        thumb_path = None
-                    await client.send_video_note(
-                        chat_id=sender,
-                        video_note=file,
-                        length=height, duration=duration, 
-                        thumb=thumb_path,
-                        progress=progress_for_pyrogram,
-                        progress_args=(
-                            client,
-                            '**UPLOADING:**\n',
-                            edit,
-                            time.time()
-                        )
-                    )
-                elif msg.media == MessageMediaType.VIDEO and getattr(msg, "video", None) and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-                    logger.info("获取视频元数据")
-                    data = video_metadata(file)
-                    height, width, duration = data["height"], data["width"], data["duration"]
-                    logger.info(f'视频信息: 时长={duration}, 宽={width}, 高={height}')
-                    try:
-                        thumb_path = await screenshot(file, duration, sender)
-                    except Exception:
-                        thumb_path = None
-                    await client.send_video(
-                        chat_id=sender,
-                        video=file,
-                        caption=caption,
-                        supports_streaming=True,
-                        height=height, width=width, duration=duration, 
-                        thumb=thumb_path,
-                        progress=progress_for_pyrogram,
-                        progress_args=(
-                            client,
-                            '**UPLOADING:**\n',
-                            edit,
-                            time.time()
-                        )
-                    )
-                elif msg.media == MessageMediaType.PHOTO:
-                    if edit_id > 0 and edit:
-                        await edit.edit("上传照片中...")
-                    await telethon_bot.send_file(sender, file, caption=caption)
-                else:
-                    thumb_path = self._get_thumbnail(sender)
-                    await client.send_document(
-                        sender,
-                        file, 
-                        caption=caption,
-                        thumb=thumb_path,
-                        progress=progress_for_pyrogram,
-                        progress_args=(
-                            client,
-                            '**UPLOADING:**\n',
-                            edit,
-                            time.time()
-                        )
-                    )
-                
-                # 清理文件
-                await self._cleanup_file(file)
-                
-                # 记录流量和下载成功
-                media_type = self._get_media_type(msg)
-                await self.traffic.add_traffic(sender, file_size, file_size)
-                await self.db.add_download(sender, msg_link, msg_id, str(chat), media_type, file_size, "success")
-                
-                if edit_id > 0 and edit:
-                    await edit.delete()
-                return True
-                
-            except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid) as e:
-                logger.warning(f"频道访问错误: {e}")
-                if edit_id > 0:
-                    await client.edit_message_text(sender, edit_id, "您加入该频道了吗？")
-                await self.db.add_download(sender, msg_link, msg_id, str(chat), "channel_error", 0, "failed")
-                return False
-            except PeerIdInvalid:
-                chat = msg_link.split("/")[-3]
-                try:
-                    int(chat)
-                    new_link = f"t.me/c/{chat}/{msg_id}"
-                except ValueError:
-                    new_link = f"t.me/b/{chat}/{msg_id}"
-                return await self.download_message(userbot, client, telethon_bot, sender, edit_id, new_link, 0)
-            except Exception as e:
-                logger.error(f"下载消息时出错: {e}", exc_info=True)
-                if self._is_telethon_fallback_needed(e):
-                    return await self._upload_with_telethon_fallback(
-                        userbot, client, telethon_bot, sender, edit_id, msg_link, 
-                        msg, file, chat, msg_id, file_size, edit, round_message, 
-                        height, width, duration, thumb_path, caption
-                    )
-                else:
-                    error_msg = self._translate_error(str(e))
-                    if edit_id > 0:
-                        await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {error_msg}')
-                    await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", file_size, "failed")
-                    await self._cleanup_file(file)
-                    return False
-        else:
-            return await self._download_public_message(client, sender, edit_id, msg_link, msg_id)
-    
-    def _get_file_size(self, msg: Any) -> int:
-        """获取文件大小
-        
-        Args:
-            msg: Telegram消息对象
-            
-        Returns:
-            int: 文件大小（字节）
-        """
-        file_size = 0
-        if msg.document:
-            file_size = msg.document.file_size
-        elif msg.video:
-            file_size = msg.video.file_size
-        elif msg.audio:
-            file_size = msg.audio.file_size
-        elif msg.photo:
-            file_size = msg.photo.file_size
-        elif msg.voice:
-            file_size = msg.voice.file_size
-        elif msg.video_note:
-            file_size = msg.video_note.file_size
-        return file_size
-    
-    def _get_thumbnail(self, sender: int) -> Optional[str]:
-        """获取缩略图路径
-        
-        Args:
-            sender: 发送者用户ID
-            
-        Returns:
-            Optional[str]: 缩略图文件路径，如果不存在则返回None
-        """
-        if os.path.exists(f'{sender}.jpg'):
-            return f'{sender}.jpg'
-        else:
-            return None
-    
-    def _get_media_type(self, msg: Any) -> str:
-        """获取媒体类型
-        
-        Args:
-            msg: Telegram消息对象
-            
-        Returns:
-            str: 媒体类型字符串
-        """
-        if msg.video_note:
-            return "video_note"
-        elif msg.video:
-            return "video"
-        elif msg.photo:
-            return "photo"
-        elif msg.document:
-            return "document"
-        elif msg.audio:
-            return "audio"
-        elif msg.voice:
-            return "voice"
-        else:
-            return "unknown"
-    
-    def _translate_error(self, error_msg: str) -> str:
-        """翻译常见错误信息
-        
-        Args:
-            error_msg: 原始错误信息
-            
-        Returns:
-            str: 翻译后的错误信息
-        """
-        if "doesn't contain any downloadable media" in error_msg:
-            return "此消息不包含可下载的媒体文件"
-        elif "file size" in error_msg.lower():
-            return "文件大小错误"
-        elif "timeout" in error_msg.lower():
-            return "下载超时，请重试"
-        elif "FloodWait" in error_msg:
-            return "请求过于频繁，请稍后再试"
-        else:
-            return error_msg
-    
-    def _is_telethon_fallback_needed(self, error: Exception) -> bool:
-        """判断是否需要使用Telethon回退上传
-        
-        Args:
-            error: 异常对象
-            
-        Returns:
-            bool: 是否需要回退上传
-        """
-        error_str = str(error)
-        return ("messages.SendMedia" in error_str or 
-                "SaveBigFilePartRequest" in error_str or 
-                "SendMediaRequest" in error_str or 
-                error_str == "File size equals to 0 B")
-    
-    async def _upload_with_telethon_fallback(self, userbot: Client, client: Client, telethon_bot: TelegramClient, 
-                                           sender: int, edit_id: int, msg_link: str, msg: Any, file: str, 
-                                           chat: str, msg_id: int, file_size: int, edit: Any, 
-                                           round_message: bool, height: int, width: int, duration: int,
-                                           thumb_path: Optional[str], caption: Optional[str]) -> bool:
-        """使用Telethon回退上传
-        
-        Args:
-            userbot: Pyrogram用户客户端
-            client: Pyrogram机器人客户端
-            telethon_bot: Telethon机器人客户端
-            sender: 发送者用户ID
-            edit_id: 缩略图路径
-            caption: 文件说明
-            
-        Returns:
-            bool: 上传是否成功
+        Raises:
+            DownloadFailedException: 下载失败时抛出
         """
         try:
-            # 统一定义上传时间戳
-            UT = time.time()
-
-            if msg.media == MessageMediaType.VIDEO and getattr(msg, "video", None) and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-                uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
-                attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)] 
-                await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
-            elif msg.media == MessageMediaType.VIDEO_NOTE:
-                uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
-                attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)] 
-                await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
-            else:
-                uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
-                await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, force_document=True)
+            logger.info(f"开始下载视频: {url}")
             
-            await self._cleanup_file(file)
+            # 验证 URL 格式
+            if not self._is_valid_url(url):
+                raise DownloadFailedException(f"无效的URL格式: {url}")
             
-            # 记录流量和下载成功（Telethon上传）
-            media_type = "video" if getattr(msg, "video", None) else "document"
-            await self.traffic.add_traffic(sender, file_size, file_size)
-            await self.db.add_download(sender, msg_link, msg_id, str(chat), media_type, file_size, "success")
-            if edit_id > 0 and edit:
-                await edit.delete()
-            return True
+            # yt-dlp 配置
+            ytdl_opts = {
+                'outtmpl': os.path.join(self.temp_dir, '%(title)s.%(ext)s'),
+                'quiet': True,
+                'no_warnings': True,
+                'merge_output_format': 'mp4',
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'progress_hooks': [self._download_progress_hook],
+            }
             
+            # 添加Cookie支持
+            from ..config import settings
+            url_domain = urlparse(url).netloc
+            if 'youtube.com' in url_domain or 'youtu.be' in url_domain and settings.YT_COOKIES:
+                # 创建临时Cookie文件
+                temp_cookie_path = os.path.join(self.temp_dir, 'youtube_cookies.txt')
+                with open(temp_cookie_path, 'w') as f:
+                    f.write(settings.YT_COOKIES)
+                ytdl_opts['cookiefile'] = temp_cookie_path
+                logger.info("已添加YouTube Cookie支持")
+            elif 'instagram.com' in url_domain and settings.INSTA_COOKIES:
+                # 创建临时Cookie文件
+                temp_cookie_path = os.path.join(self.temp_dir, 'instagram_cookies.txt')
+                with open(temp_cookie_path, 'w') as f:
+                    f.write(settings.INSTA_COOKIES)
+                ytdl_opts['cookiefile'] = temp_cookie_path
+                logger.info("已添加Instagram Cookie支持")
+            
+            # 根据质量调整 yt-dlp 配置
+            opts = ytdl_opts.copy()
+            if quality == 'worst':
+                opts['format'] = 'worstvideo[ext=mp4]+worstaudio[ext=m4a]/worst[ext=mp4]/worst'
+            elif quality == 'bestaudio':
+                opts['format'] = 'bestaudio[ext=m4a]/bestaudio'
+                opts['postprocessors'] = [{    # 只提取音频
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }]
+            
+            # 使用 yt-dlp 下载视频
+            loop = asyncio.get_event_loop()
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = await loop.run_in_executor(None, ydl.extract_info, url, False)
+                filename = await loop.run_in_executor(None, ydl.prepare_filename, info)
+                
+                # 注册进度回调
+                if progress_callback:
+                    self.progress_callbacks[filename] = progress_callback
+                
+                await loop.run_in_executor(None, ydl.download, [url])
+            
+            # 检查文件是否存在
+            if not os.path.exists(filename):
+                # 尝试查找实际文件名（因为 yt-dlp 可能会更改文件名）
+                temp_files = list(Path(self.temp_dir).glob('*'))
+                if not temp_files:
+                    raise DownloadFailedException("下载的文件不存在")
+                filename = str(temp_files[0])
+            
+            # 获取文件大小
+            file_size = os.path.getsize(filename)
+            
+            # 获取视频标题
+            title = info.get('title', '未命名视频')
+            
+            # 获取视频时长
+            duration = float(info.get('duration', 0))
+            
+            # 清理进度回调
+            if filename in self.progress_callbacks:
+                del self.progress_callbacks[filename]
+            
+            # 编辑音频元数据（如果是音频文件）
+            if quality == 'bestaudio':
+                from ..utils.metadata_editor import metadata_editor
+                # 提取文件扩展名
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in ['.mp3', '.m4a', '.wav', '.flac', '.ogg']:
+                    # 编辑音频元数据
+                    metadata = {
+                        'title': title,
+                        'artist': 'TG-Content-Bot-Pro',
+                        'comment': 'Downloaded with TG-Content-Bot-Pro'
+                    }
+                    metadata_editor.edit_audio_metadata(filename, metadata)
+                    logger.info(f"已更新音频元数据: {title}")
+            
+            logger.info(f"视频下载成功: {title}, 文件大小: {file_size} 字节, 时长: {duration} 秒")
+            return filename, title, file_size, duration
+        except yt_dlp.DownloadError as e:
+            logger.error(f"yt-dlp 下载错误: {e}")
+            raise DownloadFailedException(f"视频下载失败: {str(e)}")
         except Exception as e:
-            logger.error(f"使用Telethon上传时出错: {e}", exc_info=True)
-            error_msg = self._translate_error(str(e))
-            if edit_id > 0:
-                await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {error_msg}')
-            await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", file_size, "failed")
-            await self._cleanup_file(file)
-            return False
+            logger.error(f"下载视频时发生未知错误: {e}")
+            raise DownloadFailedException(f"视频下载失败: {str(e)}")
     
-    async def _download_public_message(self, client: Client, sender: int, edit_id: int, 
-                                     msg_link: str, msg_id: int) -> bool:
-        """下载公开消息
+    async def download_audio(self, url: str, quality: str = 'best', progress_callback: Optional[callable] = None) -> Tuple[str, str, int]:
+        """下载音频
         
         Args:
-            client: Pyrogram客户端
-            sender: 发送者用户ID
-            edit_id: 编辑消息ID（0表示不需要编辑状态消息）
-            msg_link: 消息链接
-            msg_id: 消息ID
+            url: 视频链接
+            quality: 音频质量，可选值：best, worst
+            progress_callback: 进度回调函数，接收下载进度信息
             
         Returns:
-            bool: 下载是否成功
+            音频文件路径, 音频标题, 文件大小
+            
+        Raises:
+            DownloadFailedException: 下载失败时抛出
         """
-        # 只有在edit_id > 0时才发送状态消息
-        edit = None
-        if edit_id > 0:
-            edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-        
-        chat = msg_link.split("t.me")[1].split("/")[1]
-        try:
-            msg = await client.get_messages(chat, msg_id)
-            if not msg:
-                new_link = f't.me/b/{chat}/{int(msg_id)}'
-                return await self.download_message(None, client, None, sender, edit_id, new_link, 0)
-            await client.copy_message(sender, chat, msg_id)
-        except Exception as e:
-            error_msg = str(e).lower()
-            
-            # 检查是否是SESSION相关错误
-            session_errors = [
-                "auth key not found", 
-                "404", 
-                "old session",
-                "username not found",
-                "id not found",
-                "keyerror"
-            ]
-            is_session_error = any(err in error_msg for err in session_errors)
-            
-            if is_session_error:
-                logger.warning(f"下载失败（SESSION问题）: {error_msg}")
-                error_display = "下载失败：SESSION无效或过期，请重新登录或联系管理员"
-            else:
-                logger.error(f"复制消息时出错: {e}", exc_info=True)
-                error_display = f"保存失败: `{msg_link}`\n\n错误: {str(e)}"
-            
-            if edit_id > 0:
-                await client.edit_message_text(sender, edit_id, error_display)
-            return False
-        
-        # 只有在edit不为None时才删除状态消息
-        if edit:
-            await edit.delete()
-        return True
+        # 调用download_video方法获取音频，忽略返回的时长
+        file_path, title, file_size, _ = await self.download_video(url, quality='bestaudio', progress_callback=progress_callback)
+        return file_path, title, file_size
     
-    @safe_execute(default_return=False)
-    async def _cleanup_file(self, file_path: str) -> bool:
-        """清理下载的文件
+    def _is_valid_url(self, url: str) -> bool:
+        """验证 URL 格式
         
         Args:
-            file_path: 文件路径
+            url: 要验证的 URL
             
         Returns:
-            bool: 清理是否成功
+            True 表示 URL 格式有效，False 表示无效
         """
         try:
-            if file_manager.file_exists(file_path):
-                file_manager.safe_remove(file_path)
-                logger.info(f"已清理文件: {file_path}")
-                return True
+            result = urlparse(url)
+            return all([result.scheme, result.netloc])
+        except:
             return False
+    
+    def cleanup(self, file_path: str) -> None:
+        """清理临时文件
+        
+        Args:
+            file_path: 要清理的文件路径
+        """
+        try:
+            if os.path.exists(file_path):
+                os.remove(file_path)
+                logger.debug(f"已清理临时文件: {file_path}")
         except Exception as e:
-            logger.error(f"清理文件时出错: {e}", exc_info=True)
-            return False
+            logger.error(f"清理临时文件时出错: {e}")
+    
+    def cleanup_all(self) -> None:
+        """清理所有临时文件"""
+        try:
+            if os.path.exists(self.temp_dir):
+                import shutil
+                shutil.rmtree(self.temp_dir)
+                logger.debug(f"已清理所有临时文件: {self.temp_dir}")
+        except Exception as e:
+            logger.error(f"清理所有临时文件时出错: {e}")
 
 
-# 全局下载服务实例
-from ..core.database import db_manager
-from ..services.traffic_service import traffic_service
-download_service = DownloadService()
+# 创建全局下载器实例
+download_service = VideoDownloader()

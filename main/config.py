@@ -46,18 +46,15 @@ class Settings:
         self.FORCESUB: Optional[str] = self._get_config("FORCESUB", default=None, cast=str)
         self.AUTH: Union[int, str] = self._get_config("AUTH", cast=str)  # 支持逗号分隔的用户ID
         
-        # 代理配置（带认证）
-        self.TELEGRAM_PROXY_SCHEME: Optional[str] = self._get_config("TELEGRAM_PROXY_SCHEME", default=None, cast=str)
-        self.TELEGRAM_PROXY_HOST: Optional[str] = self._get_config("TELEGRAM_PROXY_HOST", default=None, cast=str)
-        self.TELEGRAM_PROXY_PORT: Optional[int] = self._get_config("TELEGRAM_PROXY_PORT", default=None, cast=int)
-        self.TELEGRAM_PROXY_USERNAME: Optional[str] = self._get_config("TELEGRAM_PROXY_USERNAME", default=None, cast=str)
-        self.TELEGRAM_PROXY_PASSWORD: Optional[str] = self._get_config("TELEGRAM_PROXY_PASSWORD", default=None, cast=str)
-        
         # 数据库配置
         self.MONGO_DB: Optional[str] = self._get_config("MONGO_DB", default=None, cast=str)
         
         # 安全配置
         self.ENCRYPTION_KEY: Optional[str] = self._get_config("ENCRYPTION_KEY", default=None, cast=str)
+        
+        # 下载配置
+        self.YT_COOKIES: Optional[str] = self._get_config("YT_COOKIES", default=None, cast=str)
+        self.INSTA_COOKIES: Optional[str] = self._get_config("INSTA_COOKIES", default=None, cast=str)
         
         # 性能配置
         self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=3, cast=int)
@@ -228,28 +225,6 @@ class Settings:
         """
         return self.ENVIRONMENT
     
-    def get_proxy_config(self) -> Optional[Dict[str, Any]]:
-        """获取代理配置
-        
-        Returns:
-            代理配置字典，如果未配置代理则返回None
-        """
-        if not all([self.TELEGRAM_PROXY_SCHEME, self.TELEGRAM_PROXY_HOST, self.TELEGRAM_PROXY_PORT]):
-            return None
-            
-        proxy_config = {
-            "scheme": self.TELEGRAM_PROXY_SCHEME,
-            "hostname": self.TELEGRAM_PROXY_HOST,
-            "port": self.TELEGRAM_PROXY_PORT
-        }
-        
-        # 添加认证信息（如果提供）
-        if self.TELEGRAM_PROXY_USERNAME and self.TELEGRAM_PROXY_PASSWORD:
-            proxy_config["username"] = self.TELEGRAM_PROXY_USERNAME
-            proxy_config["password"] = self.TELEGRAM_PROXY_PASSWORD
-            
-        return proxy_config
-    
     def get_retry_config(self) -> Dict[str, Any]:
         """获取重试配置
         
@@ -330,6 +305,8 @@ class Settings:
             "AUTH": self.AUTH,
             "MONGO_DB": "***" if self.MONGO_DB and not include_sensitive else self.MONGO_DB,
             "ENCRYPTION_KEY": "***" if self.ENCRYPTION_KEY and not include_sensitive else self.ENCRYPTION_KEY,
+            "YT_COOKIES": "***" if self.YT_COOKIES and not include_sensitive else self.YT_COOKIES,
+            "INSTA_COOKIES": "***" if self.INSTA_COOKIES and not include_sensitive else self.INSTA_COOKIES,
             "MAX_WORKERS": self.MAX_WORKERS,
             "MIN_CONCURRENCY": self.MIN_CONCURRENCY,
             "MAX_CONCURRENCY": self.MAX_CONCURRENCY,
@@ -341,11 +318,6 @@ class Settings:
             "DEBUG": self.DEBUG,
             "LOG_LEVEL": self.LOG_LEVEL,
             "LOG_FILE": self.LOG_FILE,
-            "TELEGRAM_PROXY_SCHEME": self.TELEGRAM_PROXY_SCHEME,
-            "TELEGRAM_PROXY_HOST": self.TELEGRAM_PROXY_HOST,
-            "TELEGRAM_PROXY_PORT": self.TELEGRAM_PROXY_PORT,
-            "TELEGRAM_PROXY_USERNAME": "***" if self.TELEGRAM_PROXY_USERNAME and not include_sensitive else self.TELEGRAM_PROXY_USERNAME,
-            "TELEGRAM_PROXY_PASSWORD": "***" if self.TELEGRAM_PROXY_PASSWORD and not include_sensitive else self.TELEGRAM_PROXY_PASSWORD,
             "HEALTH_CHECK_PORT": self.HEALTH_CHECK_PORT,
             "MAX_RETRIES": self.MAX_RETRIES,
             "RETRY_DELAY": self.RETRY_DELAY,

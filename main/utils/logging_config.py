@@ -80,16 +80,56 @@ def setup_logging():
     for handler in root_logger.handlers[:]:
         root_logger.removeHandler(handler)
     
-    # 开发环境使用更详细的格式化器
-    log_format = '[%(asctime)s] [%(levelname)8s] [%(name)20s:%(lineno)4d] %(message)s'
-    date_format = '%H:%M:%S'
-    formatter = logging.Formatter(log_format, date_format)
+    # 创建日志目录
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
     
-    # 强制控制台输出（开发环境）
+    # 定义日志格式
+    log_formats = {
+        'console': '[%(asctime)s] [%(levelname)8s] [%(name)20s:%(lineno)4d] %(message)s',
+        'file': '[%(asctime)s] [%(levelname)s] [%(name)s] [%(module)s.%(funcName)s:%(lineno)d] %(message)s',
+        'datefmt': '%Y-%m-%d %H:%M:%S'
+    }
+    
+    # 创建格式化器
+    console_formatter = logging.Formatter(log_formats['console'], log_formats['datefmt'])
+    file_formatter = StructuredFormatter(log_formats['file'], log_formats['datefmt'])
+    
+    # 添加控制台处理器
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(log_level)
-    console_handler.setFormatter(formatter)
+    console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
+    
+    # 添加文件处理器（带日志旋转）
+    log_file = os.path.join(log_dir, 'tg_bot.log')
+    
+    # 使用TimedRotatingFileHandler实现按日期轮转，每天凌晨0点轮转
+    # 保留最近10个日志文件
+    file_handler = TimedRotatingFileHandler(
+        filename=log_file,
+        when='midnight',  # 每天轮转
+        interval=1,       # 每1天轮转一次
+        backupCount=10,   # 保留最近10个日志文件
+        encoding='utf-8',
+        delay=False,
+        utc=False
+    )
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(file_formatter)
+    file_handler.suffix = "%Y-%m-%d_%H-%M-%S.log"  # 日志文件名后缀
+    root_logger.addHandler(file_handler)
+    
+    # 添加大小限制的日志处理器
+    size_handler = RotatingFileHandler(
+        filename=os.path.join(log_dir, 'tg_bot_size.log'),
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=10,           # 保留最近10个日志文件
+        encoding='utf-8'
+    )
+    size_handler.setLevel(logging.DEBUG)
+    size_handler.setFormatter(file_formatter)
+    root_logger.addHandler(size_handler)
     
     # 设置根日志级别
     root_logger.setLevel(log_level)
@@ -110,6 +150,8 @@ def setup_logging():
         print(f"📊 日志级别: {log_level_name}")
         print(f"🌍 环境: {env}")
         print(f"🐛 调试模式: {debug_mode}")
+        print(f"📁 日志目录: {os.path.abspath(log_dir)}")
+        print(f"📋 日志文件保留数量: 10")
         print("=" * 70)
     
     return logging.getLogger(__name__)
