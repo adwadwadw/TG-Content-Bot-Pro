@@ -274,13 +274,17 @@ class VideoDownloader:
             
             if not match:
                 self.logger.error(f"无效的消息链接格式: {msg_link}")
-                await telethon_bot.edit_message(edit_id, "❌ 无效的消息链接格式")
+                # 直接发送新消息，不尝试编辑
+                await telethon_bot.send_message(sender, "❌ 无效的消息链接格式")
                 return False
             
             chat_id = match.group(1)
             message_id = int(match.group(2)) + offset
             
             self.logger.info(f"解析链接结果: chat_id={chat_id}, message_id={message_id}")
+            
+            # 发送处理状态
+            await telethon_bot.send_message(sender, "✅ 正在下载媒体...")
             
             # 下载媒体
             if userbot:
@@ -290,30 +294,50 @@ class VideoDownloader:
                     # 这里应该实现Userbot下载逻辑
                     # 例如: message = await userbot.get_messages(chat_id, message_id)
                     # 然后下载媒体并发送给用户
-                    await telethon_bot.edit_message(edit_id, "✅ Userbot下载功能开发中")
+                    await telethon_bot.send_message(sender, "✅ Userbot下载功能开发中")
                     return True
                 except Exception as e:
                     self.logger.error(f"Userbot下载失败: {e}")
-                    await telethon_bot.edit_message(edit_id, f"❌ Userbot下载失败: {str(e)}")
+                    await telethon_bot.send_message(sender, f"❌ Userbot下载失败: {str(e)}")
                     return False
             else:
                 # 使用Telethon Bot下载
                 try:
                     self.logger.info("使用Telethon Bot下载媒体")
-                    await telethon_bot.edit_message(edit_id, "✅ 正在下载媒体...")
                     # 这里应该实现Telethon Bot下载逻辑
                     # 例如: message = await telethon_bot.get_messages(chat_id, message_id)
                     # 然后下载媒体并发送给用户
-                    await telethon_bot.edit_message(edit_id, "✅ Telethon Bot下载功能开发中")
-                    return True
+                    await telethon_bot.send_message(sender, "✅ 正在获取消息...")
+                    # 尝试获取消息
+                    try:
+                        # 获取聊天实体
+                        chat_entity = await telethon_bot.get_entity(chat_id)
+                        await telethon_bot.send_message(sender, f"✅ 已找到聊天实体: {chat_entity.title if hasattr(chat_entity, 'title') else chat_id}")
+                        
+                        # 尝试获取消息
+                        message = await telethon_bot.get_messages(chat_entity, ids=message_id)
+                        await telethon_bot.send_message(sender, f"✅ 已获取消息: {message.id}")
+                        
+                        # 检查消息是否包含媒体
+                        if message.media:
+                            await telethon_bot.send_message(sender, "✅ 消息包含媒体，开始下载...")
+                            # 这里应该实现媒体下载逻辑
+                            await telethon_bot.send_message(sender, "✅ 媒体下载功能开发中")
+                            return True
+                        else:
+                            await telethon_bot.send_message(sender, "❌ 消息不包含媒体")
+                            return False
+                    except Exception as e:
+                        self.logger.error(f"获取消息失败: {e}")
+                        await telethon_bot.send_message(sender, f"❌ 获取消息失败: {str(e)}")
+                        return False
                 except Exception as e:
                     self.logger.error(f"Telethon Bot下载失败: {e}")
-                    await telethon_bot.edit_message(edit_id, f"❌ 下载失败: {str(e)}")
+                    await telethon_bot.send_message(sender, f"❌ 下载失败: {str(e)}")
                     return False
         except Exception as e:
             self.logger.error(f"处理消息链接时出错: {e}", exc_info=True)
-            if edit_id:
-                await telethon_bot.edit_message(edit_id, f"❌ 处理失败: {str(e)}")
+            await telethon_bot.send_message(sender, f"❌ 处理失败: {str(e)}")
             return False
 
 
