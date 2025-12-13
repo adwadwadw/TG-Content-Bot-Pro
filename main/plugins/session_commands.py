@@ -584,9 +584,7 @@ class SessionPlugin(BasePlugin):
                     device_model="iPhone 15 Pro Max",
                     system_version="iOS 17.5",
                     lang_code="en",
-                    sleep_threshold=0,
-                    timeout=30,
-                    retry_delay=2
+                    sleep_threshold=0
                 )
                 
                 try:

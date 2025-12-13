@@ -78,8 +78,7 @@ class ClientManager:
                 app_version="10.2.0",
                 device_model="iPhone 15 Pro Max",
                 system_version="iOS 17.5",
-                lang_code="en",
-                timeout=30
+                lang_code="en"
             )
             
             logger.info("Pyrogram bot客户端实例创建完成")
