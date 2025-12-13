@@ -285,7 +285,7 @@ class VideoDownloader:
             self.logger.info(f"解析链接结果: chat_id={chat_id}, message_id={message_id}")
             
             # 发送处理状态
-            status_msg = await telethon_bot.send_message(sender, "✅ 正在下载媒体...")
+            status_msg = await telethon_bot.send_message(sender, "✅ 正在处理媒体...")
             
             # 尝试获取聊天实体和消息
             try:
@@ -304,6 +304,26 @@ class VideoDownloader:
                     else:
                         await status_msg.edit("❌ 消息不包含媒体或文本内容")
                     return False
+                
+                # 先尝试直接转发（最快方式）
+                try:
+                    await status_msg.edit("✅ 正在直接转发媒体...")
+                    
+                    # 使用forward_messages直接转发
+                    await telethon_bot.forward_messages(
+                        sender,
+                        message,
+                        reply_to=edit_id if edit_id else None
+                    )
+                    
+                    # 转发成功
+                    await status_msg.edit("✅ 转发完成")
+                    self.logger.info(f"成功直接转发媒体: {msg_link}")
+                    return True
+                except Exception as forward_error:
+                    # 转发失败，回退到下载-上传模式
+                    self.logger.warning(f"直接转发失败，回退到下载模式: {forward_error}")
+                    await status_msg.edit("✅ 直接转发失败，尝试下载模式...")
                 
                 # 下载媒体到本地
                 await status_msg.edit("✅ 正在下载媒体...")
@@ -354,8 +374,8 @@ class VideoDownloader:
                 self.logger.info(f"成功下载并发送媒体: {msg_link}")
                 return True
             except Exception as e:
-                self.logger.error(f"下载媒体失败: {e}")
-                await status_msg.edit(f"❌ 下载失败: {str(e)}")
+                self.logger.error(f"处理媒体失败: {e}")
+                await status_msg.edit(f"❌ 处理失败: {str(e)}")
                 return False
         except Exception as e:
             self.logger.error(f"处理消息链接时出错: {e}", exc_info=True)
