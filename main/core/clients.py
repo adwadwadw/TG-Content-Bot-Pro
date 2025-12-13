@@ -340,11 +340,9 @@ class ClientManager:
             raise
     
     async def _init_userbot(self):
-        """初始化userbot客户端"""
+        """初始化userbot客户端 - 优化版本"""
         try:
-            # 保存原始SESSION配置
-            original_session = settings.SESSION
-            fallback_to_db = False
+            # 参考开源项目，采用更稳定的初始化流程
             
             # 如果没有设置SESSION，尝试从会话服务获取SESSION
             if not settings.SESSION:
@@ -354,150 +352,101 @@ class ClientManager:
                     logger.info("从会话服务加载SESSION成功")
             
             if settings.SESSION:
-                # 对于Pyrogram SESSION，直接使用原始字符串，不做任何验证或清理
-                # Pyrogram SESSION格式特殊，过度处理可能导致格式错误
-                # Pyrogram SESSION通常比较长且包含特定的Base64字符模式
-                if (settings.SESSION.startswith(("1", "2", "3")) or 
-                    (len(settings.SESSION) > 100 and 
-                     all(c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/" for c in settings.SESSION.replace("=", "")))):
-                    logger.info("检测到Pyrogram SESSION格式，跳过验证和清理")
+                # 参考开源项目，简化SESSION验证逻辑
+                # Pyrogram SESSION格式特殊，避免过度处理
+                if settings.SESSION.startswith(("1", "2", "3")):
+                    logger.info("检测到Pyrogram SESSION格式，直接使用")
                     corrected_session = settings.SESSION
                 else:
-                    # 对于其他SESSION，验证SESSION格式并获取修正后的值
-                    corrected_session = self._validate_and_fix_session(settings.SESSION)
-                    
-                    # 即使SESSION验证失败，也尝试使用原始SESSION启动Userbot
-                    if corrected_session is None:
-                        logger.warning("SESSION验证失败，但仍将尝试使用原始SESSION启动Userbot")
+                    # 对于非标准格式，进行基本清理
+                    import re
+                    cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', settings.SESSION)
+                    if len(cleaned_session) >= 50:  # 基本长度检查
+                        corrected_session = cleaned_session
+                        logger.info("SESSION已清理，长度: %d", len(corrected_session))
+                    else:
                         corrected_session = settings.SESSION
-                    
-                    # 只在SESSION被修正时更新配置
-                    if corrected_session != settings.SESSION:
-                        settings.SESSION = corrected_session
-                        logger.info("SESSION已自动修复")
+                        logger.warning("SESSION长度不足，将尝试使用原始字符串")
                 
                 # 掩码敏感信息用于日志
-                masked_session = security_manager.mask_sensitive_data(settings.SESSION, 15)
+                masked_session = security_manager.mask_sensitive_data(corrected_session, 15)
                 logger.info(f"正在启动Userbot客户端 (Session: {masked_session})")
                 
                 # 获取代理配置
                 pyrogram_proxy = self._get_pyrogram_proxy()
                 
-                # 创建Pyrogram客户端（Userbot）
+                # 参考开源项目，使用更稳定的客户端配置
+                client_config = {
+                    "name": "saverestricted",
+                    "session": corrected_session,
+                    "api_hash": settings.API_HASH,
+                    "api_id": settings.API_ID,
+                    "sleep_threshold": 0,  # 禁用连接池，提高稳定性
+                    "app_version": "10.0.0",
+                    "device_model": "iPhone 15 Pro",
+                    "system_version": "iOS 17.0",
+                    "lang_code": "en",
+                    "system_lang_code": "en-US"
+                }
+                
+                # 添加代理配置
                 if pyrogram_proxy:
                     pyrogram_proxy_config = self._create_pyrogram_proxy_config(pyrogram_proxy)
                     if pyrogram_proxy_config:
                         masked_user = security_manager.mask_sensitive_data(str(pyrogram_proxy_config.get('username', ''))) if pyrogram_proxy_config.get('username') else ''
                         logger.info(f"Userbot使用代理: {pyrogram_proxy_config['scheme']}://{masked_user+'@' if masked_user else ''}{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}")
-                    
-                    # 对于HTTP代理认证，Pyrogram可能不支持通过proxy参数传递
-                    # 尝试使用环境变量设置代理
-                    if pyrogram_proxy_config and pyrogram_proxy_config['scheme'] in ['http', 'https']:
-                        import os
-                        # 检查是否有认证信息
-                        if pyrogram_proxy_config.get('username') and pyrogram_proxy_config.get('password'):
-                            proxy_url = f"{pyrogram_proxy_config['scheme']}://{pyrogram_proxy_config['username']}:{pyrogram_proxy_config['password']}@{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}"
-                        else:
-                            proxy_url = f"{pyrogram_proxy_config['scheme']}://{pyrogram_proxy_config['hostname']}:{pyrogram_proxy_config['port']}"
-                        os.environ['HTTP_PROXY'] = proxy_url
-                        os.environ['HTTPS_PROXY'] = proxy_url
-                        logger.info("通过环境变量设置代理: <masked>")
-                        # 不传递proxy参数，让Pyrogram使用环境变量
-                        self.userbot = Client(
-                            "saverestricted", 
-                            session=settings.SESSION, 
-                            api_hash=settings.API_HASH, 
-                            api_id=settings.API_ID,
-                            sleep_threshold=0  # 添加sleep_threshold参数
-                        )
-                    else:
-                        # 对于SOCKS代理或其他情况，正常使用proxy参数
-                        self.userbot = Client(
-                            "saverestricted", 
-                            session=settings.SESSION, 
-                            api_hash=settings.API_HASH, 
-                            api_id=settings.API_ID,
-                            proxy=pyrogram_proxy_config,
-                            sleep_threshold=0  # 添加sleep_threshold参数
-                        )
-                else:
-                    self.userbot = Client(
-                        "saverestricted", 
-                        session=settings.SESSION, 
-                        api_hash=settings.API_HASH, 
-                        api_id=settings.API_ID,
-                        sleep_threshold=0  # 添加sleep_threshold参数
-                    )
+                        client_config["proxy"] = pyrogram_proxy_config
+                
+                # 创建并启动客户端
+                self.userbot = Client(**client_config)
                 
                 # 尝试启动Userbot
                 try:
                     await self.userbot.start()
                     logger.info("Userbot客户端启动成功")
+                    
+                    # 验证客户端状态
+                    if not self.userbot.is_connected:
+                        logger.warning("Userbot客户端已启动但未连接")
+                        await self.userbot.stop()
+                        self.userbot = None
+                        
                 except Exception as start_error:
                     error_msg = str(start_error).lower()
                     logger.error(f"Userbot启动失败: {start_error}")
-                    logger.debug(f"错误信息详情: {error_msg}")
                     
-                    # 检查是否是SESSION相关错误
+                    # 参考开源项目，简化错误处理逻辑
                     session_errors = [
-                        "unpack requires a buffer", 
                         "invalid session", 
                         "session expired", 
                         "session revoked", 
-                        "session invalid", 
-                        "auth key not found", 
-                        "404", 
-                        "old session", 
-                        "session string",
-                        "transport error",
-                        "server sent"
+                        "auth key not found",
+                        "406 update_app_to_login"
                     ]
-                    is_session_error = any(err in error_msg for err in session_errors)
-                    logger.debug(f"是否为SESSION错误: {is_session_error}")
                     
-                    # 如果是SESSION错误，自动删除失效的SESSION
+                    is_session_error = any(err in error_msg for err in session_errors)
+                    
                     if is_session_error:
-                        logger.warning("检测到SESSION错误，正在自动删除失效的SESSION...")
+                        logger.warning("检测到SESSION错误，正在清理无效SESSION...")
                         try:
                             # 删除数据库中的SESSION
-                            delete_result = await self.session_svc.delete_session(settings.AUTH)
-                            if delete_result:
-                                logger.info(f"已自动删除用户 {settings.AUTH} 的失效SESSION")
-                            else:
-                                logger.warning(f"删除用户 {settings.AUTH} 的SESSION失败或SESSION不存在")
-                            
-                            # 清除当前SESSION配置
+                            await self.session_svc.delete_session(settings.AUTH)
                             settings.SESSION = None
-                            logger.info("已清除当前SESSION配置")
-                            
-                            # 不尝试重新启动Userbot客户端，避免在终端要求输入认证
-                            logger.info("已清除无效SESSION，Userbot客户端将保持停止状态")
-                            self.userbot = None
-                            return
-                            
+                            logger.info("已清理无效SESSION")
                         except Exception as delete_error:
-                            logger.error(f"自动删除SESSION时出错: {delete_error}")
+                            logger.error(f"清理SESSION时出错: {delete_error}")
                     
-                    # 如果是SESSION错误，直接返回而不尝试其他SESSION
-                    if is_session_error:
-                        logger.warning("Userbot启动失败，但应用将继续运行")
-                        logger.info("提示：您可以使用以下命令来添加新的SESSION：")
-                        logger.info("1. /addsession - 通过机器人命令添加SESSION")
-                        logger.info("2. /generatesession - 在线生成SESSION字符串")
-                        self.userbot = None
-                        return
+                    self.userbot = None
+                    logger.info("Userbot启动失败，但机器人将继续运行")
+                    
             else:
-                logger.warning("未配置SESSION，Userbot将以有限功能运行")
-                logger.info("提示：您可以使用以下命令来添加SESSION：")
-                logger.info("1. /addsession - 通过机器人命令添加SESSION")
-                logger.info("2. /generatesession - 在线生成SESSION字符串")
+                logger.warning("未配置SESSION，Userbot将无法运行")
+                logger.info("使用以下命令添加SESSION：\n1. /addsession\n2. /generatesession")
                 self.userbot = None
+                
         except Exception as e:
-            logger.error(f"Userbot启动失败: {e}")
-            logger.warning("Userbot启动失败，但应用将继续运行")
-            logger.info("提示：您可以使用以下命令来添加或更新SESSION：")
-            logger.info("1. /addsession - 通过机器人命令添加SESSION")
-            logger.info("2. /generatesession - 在线生成SESSION字符串")
+            logger.error(f"Userbot初始化失败: {e}")
+            logger.warning("Userbot启动失败，但机器人将继续运行")
             self.userbot = None
     
     def _validate_and_fix_session(self, session_string: str) -> Optional[str]:

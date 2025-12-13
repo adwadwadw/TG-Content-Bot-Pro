@@ -25,24 +25,32 @@ class SessionService:
         self._init_encryption()
     
     def _init_encryption(self):
-        """初始化加密：当提供密钥时启用，否则明文存储"""
+        """初始化加密：参考开源项目的安全加密机制"""
         try:
             if settings.ENCRYPTION_KEY:
                 key = settings.ENCRYPTION_KEY.encode()
+                
+                # 参考开源项目，使用更强的密钥派生机制
                 if len(key) != 32:
-                    salt = b'tg_content_bot_salt_16bytes'
+                    # 使用随机盐增强安全性
+                    salt = secrets.token_bytes(16)  # 16字节随机盐
                     kdf = PBKDF2HMAC(
                         algorithm=hashes.SHA256(),
                         length=32,
                         salt=salt,
-                        iterations=100000,
+                        iterations=100000,  # 高迭代次数增强安全性
                     )
                     key = base64.urlsafe_b64encode(kdf.derive(key))
+                else:
+                    # 如果已经是32字节，直接使用
+                    key = base64.urlsafe_b64encode(key)
+                
                 self.cipher_suite = Fernet(key)
-                logger.info("会话加密已启用")
+                logger.info("会话加密已启用（使用强加密机制）")
             else:
                 self.cipher_suite = None
-                logger.info("未配置加密密钥，SESSION将以明文保存到数据库")
+                logger.warning("未配置加密密钥，SESSION将以明文保存到数据库")
+                logger.info("建议在 .env 中设置 ENCRYPTION_KEY 以启用加密")
         except Exception as e:
             logger.error(f"初始化加密系统失败: {e}")
             self.cipher_suite = None

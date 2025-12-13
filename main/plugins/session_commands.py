@@ -71,7 +71,7 @@ class SessionPlugin(BasePlugin):
         self.logger.info("会话管理插件事件处理器已移除")
     
     def _validate_session_string(self, session_string):
-        """验证 SESSION 字符串格式"""
+        """验证 SESSION 字符串格式 - 优化版本"""
         if not session_string:
             return False, "SESSION字符串不能为空"
         
@@ -79,13 +79,26 @@ class SessionPlugin(BasePlugin):
         if session_string.startswith('+') and len(session_string) < 20:
             return False, "这看起来像是手机号码，请在SESSION生成流程中使用"
         
-        # 清理字符串，移除所有非base64字符，但保留换行符和空格以便后续处理
-        # 先保存原始字符串用于显示
-        original_length = len(session_string)
-        # 清理字符串，但更宽松地处理
-        cleaned_session = re.sub(r'[^\w+/=\n\r\-_ ]', '', session_string)
-        # 移除多余的空格和换行符，但保留base64结构
-        cleaned_session = re.sub(r'[^A-Za-z0-9+/=_\-]', '', cleaned_session)
+        # 参考开源项目，采用更智能的SESSION验证逻辑
+        
+        # 对于Pyrogram SESSION格式（以1、2、3开头），直接通过验证
+        if session_string.startswith(('1', '2', '3')):
+            if len(session_string) >= 100:  # Pyrogram SESSION通常较长
+                return True, "有效的Pyrogram SESSION格式"
+            else:
+                return False, f"SESSION长度异常: {len(session_string)} 字符（Pyrogram SESSION应较长）"
+        
+        # 对于其他SESSION格式，进行Base64验证
+        # 清理字符串，移除所有非base64字符
+        cleaned_session = re.sub(r'[^A-Za-z0-9+/=_-]', '', session_string)
+        
+        # 如果清理后字符串为空，说明格式严重错误
+        if not cleaned_session:
+            return False, "SESSION格式严重错误，无法识别有效字符"
+        
+        # 基本长度检查（参考开源项目的最小长度要求）
+        if len(cleaned_session) < 50:
+            return False, f"SESSION字符串长度不足: {len(cleaned_session)} 字符（最小50字符）"
         
         # URL-safe base64 转换为标准 base64
         cleaned_session = cleaned_session.replace('-', '+').replace('_', '/')
@@ -98,15 +111,20 @@ class SessionPlugin(BasePlugin):
         if padding_needed > 0:
             cleaned_session += '=' * padding_needed
         
-        # 基本长度检查
-        if len(cleaned_session) < 50:
-            return False, f"SESSION字符串长度不足: {len(cleaned_session)} 字符"
-        
         # 验证是否符合Base64模式
         if re.match(r'^[A-Za-z0-9+/]*={0,2}$', cleaned_session):
-            return True, "有效"
+            # 尝试解码以进一步验证
+            try:
+                import base64
+                decoded = base64.b64decode(cleaned_session)
+                if len(decoded) >= 10:  # 解码后应有合理长度
+                    return True, "有效的SESSION格式"
+                else:
+                    return False, "SESSION解码后数据长度异常"
+            except Exception:
+                return False, "SESSION无法正确解码"
         
-        return False, "SESSION字符串格式无效"
+        return False, "SESSION字符串不符合Base64格式"
     
     async def _add_session(self, event):
         """添加 SESSION 字符串"""
@@ -324,7 +342,7 @@ class SessionPlugin(BasePlugin):
             await event.reply(f"❌ 获取失败: {str(e)}")
     
     async def _generate_session(self, event):
-        """在线生成 SESSION 字符串"""
+        """在线生成 SESSION 字符串 - 优化版本"""
         try:
             # 权限检查：只允许授权用户使用
             if not await permission_service.require_authorized(event.sender_id):
@@ -340,36 +358,49 @@ class SessionPlugin(BasePlugin):
             # 检查环境变量中是否已有 API_ID 和 API_HASH
             has_api_credentials = bool(settings.API_ID) and bool(settings.API_HASH)
             
+            # 参考开源项目，使用更友好的交互流程
             if has_api_credentials:
                 await event.reply(
                     "🔐 **在线生成 SESSION**\n\n"
-                    "检测到已配置的 API 凭证，将直接使用。\n\n"
-                    "请发送您的 **手机号码**\n"
-                    "   (包含国家代码，例如：+8613800138000)\n\n"
-                    "⚠️ 请确保手机号码正确，否则生成会失败\n"
-                    "💡 使用 /cancelsession 可随时取消"
+                    "✅ 检测到已配置的 API 凭证\n"
+                    "📱 请发送您的 **手机号码**\n\n"
+                    "💡 **格式示例**:\n"
+                    "• +8613800138000 (中国)\n"
+                    "• +919876543210 (印度)\n"
+                    "• +1234567890 (美国)\n\n"
+                    "⚠️ **重要提示**:\n"
+                    "• 确保手机号码正确\n"
+                    "• 确保手机可接收短信\n"
+                    "• 使用 /cancelsession 可随时取消"
                 )
                 
                 self.session_generation_tasks[user_id] = {
                     'step': 'phone',
                     'data': {
                         'api_id': settings.API_ID,
-                        'api_hash': settings.API_HASH
+                        'api_hash': settings.API_HASH,
+                        'start_time': time.time()
                     }
                 }
             else:
                 await event.reply(
                     "🔐 **在线生成 SESSION**\n\n"
                     "请按以下步骤操作：\n\n"
-                    "1️⃣ 请发送您的 **API_ID**\n"
-                    "   (从 my.telegram.org 获取)\n\n"
-                    "⚠️ 请确保信息准确，否则生成会失败\n"
-                    "💡 使用 /cancelsession 可随时取消"
+                    "1️⃣ **API_ID**\n"
+                    "   • 从 my.telegram.org 获取\n"
+                    "   • 格式: 纯数字 (如: 123456)\n\n"
+                    "💡 **如何获取**:\n"
+                    "• 登录 my.telegram.org\n"
+                    "• 创建应用并获取 API 凭证\n"
+                    "• 发送 API_ID 开始流程\n\n"
+                    "⚠️ 使用 /cancelsession 可随时取消"
                 )
                 
                 self.session_generation_tasks[user_id] = {
                     'step': 'api_id',
-                    'data': {}
+                    'data': {
+                        'start_time': time.time()
+                    }
                 }
             
         except Exception as e:
@@ -529,23 +560,32 @@ class SessionPlugin(BasePlugin):
                 
             elif step == 'phone':
                 if not text.startswith('+'):
-                    await event.reply("❌ 手机号码必须包含国家代码(以 + 开头)，请重新发送")
+                    await event.reply("❌ 手机号码必须包含国家代码(以 + 开头)，请重新发送\n\n💡 **正确格式**: +8613800138000")
+                    return
+                
+                # 验证手机号码格式
+                phone_pattern = r'^\+[1-9]\d{1,14}$'
+                if not re.match(phone_pattern, text):
+                    await event.reply("❌ 手机号码格式无效，请检查并重新发送\n\n💡 **示例格式**: +8613800138000")
                     return
                 
                 data['phone'] = text
                 phone_number = data['phone']
                 
-                await event.reply("⏳ 正在发送验证码，请稍候...")
+                await event.reply("⏳ 正在连接 Telegram 服务器，请稍候...")
                 
+                # 参考开源项目，使用更稳定的客户端配置
                 temp_client = Client(
                     f"temp_session_{user_id}",
                     api_id=data['api_id'],
                     api_hash=data['api_hash'],
+                    app_version="10.0.0",
                     device_model="iPhone 15 Pro",
                     system_version="iOS 17.0",
-                    app_version="10.0.0",
                     lang_code="en",
-                    system_lang_code="en-US"
+                    system_lang_code="en-US",
+                    in_memory=True,
+                    sleep_threshold=0  # 禁用连接池，提高稳定性
                 )
                 
                 try:
@@ -631,8 +671,10 @@ class SessionPlugin(BasePlugin):
                     del self.session_generation_tasks[user_id]
                     
             elif step == 'code':
+                # 参考开源项目，优化验证码处理流程
+                
                 # 检查是否是重新发送请求
-                if text.lower() == 'resend':
+                if text.lower() in ['resend', '重新发送', '重发']:
                     temp_client = data.get('client')
                     if not temp_client:
                         await event.reply("❌ 会话已过期，请使用 /generatesession 重新开始")
@@ -647,66 +689,79 @@ class SessionPlugin(BasePlugin):
                         
                         # 更新验证码类型信息
                         data['sent_code_type'] = str(sent_code.type)
+                        data['code_sent_time'] = time.time()  # 重置发送时间
                         
-                        # 根据新验证码类型提供指引
+                        # 根据新验证码类型提供更友好的指引
                         code_type_str = str(sent_code.type)
                         if "APP" in code_type_str.upper():
                             instruction = (
-                                "✅ **验证码已重新通过 Telegram 应用内消息发送**\n\n"
-                                "📱 **验证码查找方法**:\n"
-                                "1️⃣ 查看 Telegram 通知栏\n"
-                                "2️⃣ 在聊天列表顶部查找 \"Telegram\" 官方账号\n"
-                                "3️⃣ 检查是否有验证码弹窗\n\n"
-                                "请发送收到的验证码，格式: `1 2 3 4 5`"
+                                "✅ **验证码已重新通过 Telegram 应用发送**\n\n"
+                                "📱 **查找方法**:\n"
+                                "• 查看通知栏或应用内消息\n"
+                                "• 检查 Telegram 官方聊天\n"
+                                "• 等待弹窗通知\n\n"
+                                "💡 发送格式: `12345` (5位数字)"
                             )
                         elif "SMS" in code_type_str.upper():
                             instruction = (
-                                "✅ **验证码已重新通过短信发送到您的手机**\n\n"
-                                "📱 请查看手机短信，然后发送验证码\n"
-                                "格式: `12345` (连续5位数字，无需空格)"
+                                "✅ **验证码已重新通过短信发送**\n\n"
+                                "📱 请查看手机短信\n"
+                                "💡 发送格式: `12345` (5位数字)"
                             )
                         else:
                             instruction = (
                                 f"✅ 验证码已重新发送（类型: {sent_code.type}）\n\n"
-                                "请输入收到的验证码，格式: `12345` (连续5位数字)"
+                                "💡 发送格式: `12345` (5位数字)"
                             )
                         
                         await event.reply(instruction)
                         return
                     except Exception as resend_error:
-                        error_msg = f"❌ 重新发送验证码失败: {str(resend_error)}\n\n"
+                        err_str = str(resend_error).lower()
                         
-                        # 检查是否是哈希过期错误，需要完全重新开始
-                        if "PHONE_CODE_HASH_EMPTY" in str(resend_error).upper() or "PHONE_CODE_EXPIRED" in str(resend_error).upper():
-                            error_msg += "验证码会话已过期，需要重新开始。\n\n"
-                            error_msg += "请使用 /generatesession 重新开始生成流程"
-                            # 清理客户端连接
-                            if temp_client:
-                                try:
-                                    await temp_client.disconnect()
-                                except Exception:
-                                    pass
-                            # 取消标记用户会话状态
-                            from .message_handler import message_handler_plugin
-                            message_handler_plugin.mark_user_in_conversation(user_id, False)
-                            del self.session_generation_tasks[user_id]
+                        # 参考开源项目，提供更具体的错误提示
+                        if "phone_code_hash_empty" in err_str or "phone_code_expired" in err_str:
+                            error_msg = (
+                                "❌ 验证码会话已过期\n\n"
+                                "请使用 /generatesession 重新开始流程"
+                            )
+                        elif "flood" in err_str:
+                            error_msg = (
+                                "❌ 发送过于频繁，请稍后再试\n\n"
+                                "💡 等待几分钟后重试"
+                            )
                         else:
-                            error_msg += "请使用 /generatesession 重新开始"
+                            error_msg = f"❌ 重新发送失败: {str(resend_error)}\n\n请稍后重试"
+                        
+                        # 清理资源
+                        if temp_client:
+                            try:
+                                await temp_client.disconnect()
+                            except Exception:
+                                pass
+                        
+                        # 取消标记用户会话状态
+                        from .message_handler import message_handler_plugin
+                        message_handler_plugin.mark_user_in_conversation(user_id, False)
+                        del self.session_generation_tasks[user_id]
                         
                         await event.reply(error_msg)
                         return
                 
-                # 简单的验证码处理：支持带空格、连字符或纯数字格式
-                code = text.replace('-', '').replace(' ', '').strip()
+                # 智能验证码提取：支持多种格式
+                code = text.strip()
+                
+                # 支持多种格式：纯数字、带空格、带连字符
+                code = re.sub(r'[\s\-]', '', code)
                 
                 # 验证码有效性检查
                 if not code.isdigit():
-                    await event.reply("❌ 验证码只能包含数字，请重新发送")
+                    await event.reply("❌ 验证码只能包含数字\n\n💡 正确格式: `12345` (5位数字)")
                     return
                 
-                # 验证码长度检查：支持5位或6位验证码
+                # 验证码长度检查
                 if len(code) not in [5, 6]:
-                    await event.reply(f"❌ 验证码应为5位或6位数字，当前为{len(code)}位，请重新发送")
+                    await event.reply(f"❌ 验证码应为5位或6位数字\n\n💡 您发送了 {len(code)} 位，请检查并重新发送")
                     return
                 
                 temp_client = data.get('client')
@@ -715,40 +770,28 @@ class SessionPlugin(BasePlugin):
                     del self.session_generation_tasks[user_id]
                     return
                 
+                # 检查验证码是否过期
                 code_sent_time = data.get('code_sent_time', 0)
                 original_timeout = data.get('original_timeout', self.CODE_TIMEOUT)
+                effective_timeout = original_timeout if original_timeout else self.CODE_TIMEOUT
                 
-                # 修复时间判断逻辑，确保code_sent_time有效且未超时
-                if code_sent_time > 0:
-                    # 使用time.time()确保时间计算一致性
-                    elapsed_time = time.time() - code_sent_time
-                    
-                    # 使用Telegram官方超时时间或默认的3分钟
-                    effective_timeout = original_timeout if original_timeout else self.CODE_TIMEOUT
-                    
-                    if elapsed_time > effective_timeout:
-                        if temp_client:
-                            await temp_client.disconnect()
-                        # 取消标记用户会话状态
-                        from .message_handler import message_handler_plugin
-                        message_handler_plugin.mark_user_in_conversation(user_id, False)
-                        await event.reply(
-                            f"❌ 验证码已过期(超过{int(effective_timeout/60)}分钟)\n\n"
-                            "请使用 /generatesession 重新开始"
-                        )
-                        del self.session_generation_tasks[user_id]
-                        return
+                if code_sent_time > 0 and (time.time() - code_sent_time) > effective_timeout:
+                    await temp_client.disconnect()
+                    from .message_handler import message_handler_plugin
+                    message_handler_plugin.mark_user_in_conversation(user_id, False)
+                    await event.reply(
+                        f"❌ 验证码已过期 (超过 {int(effective_timeout/60)} 分钟)\n\n"
+                        "请使用 /generatesession 重新开始"
+                    )
+                    del self.session_generation_tasks[user_id]
+                    return
                 
                 # 使用验证码登录
                 try:
                     await event.reply("⏳ 正在验证验证码...")
                     phone_code_hash = data.get('phone_code_hash')
                     
-                    # 添加详细的参数验证日志
-                    self.logger.info(f"验证码参数 - 手机号: {data['phone']}, 验证码: {code}, 哈希: {phone_code_hash[:20]}...")
-                    
-                    # 使用更稳定的sign_in方法调用
-                    # Pyrogram 1.x版本使用更稳定的参数传递方式
+                    # 参考开源项目，使用更稳定的登录方法
                     await temp_client.sign_in(
                         phone_number=data['phone'],
                         phone_code=code,
@@ -756,72 +799,86 @@ class SessionPlugin(BasePlugin):
                     )
                         
                 except Exception as sign_in_error:
-                    # 检查是否需要密码
-                    err_str = str(sign_in_error)
+                    err_str = str(sign_in_error).lower()
                     self.logger.error(f"验证码验证失败: {err_str}")
                     
-                    if "password" in err_str.lower() or "two_factor" in err_str.lower(): 
+                    # 智能错误处理
+                    if "password" in err_str or "two_factor" in err_str: 
                         task['step'] = 'password'
                         await event.reply(
-                            "🔐 检测到您的账户启用了两步验证\n\n"
-                            "请发送您的 **两步验证密码**"
+                            "🔐 **检测到两步验证**\n\n"
+                            "请发送您的 **两步验证密码**\n\n"
+                            "💡 这是您账户的安全密码，不是验证码"
                         )
                         return
+                    elif "phone_code_invalid" in err_str:
+                        await event.reply("❌ 验证码错误，请重新发送")
+                        return
+                    elif "phone_code_expired" in err_str:
+                        await event.reply("❌ 验证码已过期，请重新发送验证码")
+                        return
                     else:
-                        # 所有其他错误（包括PHONE_CODE_EMPTY、PHONE_CODE_EXPIRED等）统一处理
-                        # 简化处理：直接提示用户重新开始，避免复杂的错误分类
-                        await event.reply(f"❌ 验证码验证失败: {err_str}\n\n请使用 /generatesession 重新开始")
+                        # 通用错误处理
+                        error_msg = f"❌ 验证失败: {err_str}\n\n请使用 /generatesession 重新开始"
                         await temp_client.disconnect()
                         del self.session_generation_tasks[user_id]
+                        await event.reply(error_msg)
                         return
                 
                 # 登录成功，生成SESSION
-                session_string = await temp_client.export_session_string()
-                
-                await temp_client.disconnect()
-                
-                # 取消标记用户会话状态
-                from .message_handler import message_handler_plugin
-                message_handler_plugin.mark_user_in_conversation(user_id, False)
-                
-                del self.session_generation_tasks[user_id]
-                
-                success = await session_service.save_session(user_id, session_string)
-                
-                if success:
-                    # 尝试动态刷新 userbot SESSION
-                    try:
-                        from ..core.clients import client_manager
-                        refresh_success = await client_manager.refresh_userbot_session(session_string)
-                        if refresh_success:
+                try:
+                    session_string = await temp_client.export_session_string()
+                    await temp_client.disconnect()
+                    
+                    # 取消标记用户会话状态
+                    from .message_handler import message_handler_plugin
+                    message_handler_plugin.mark_user_in_conversation(user_id, False)
+                    
+                    del self.session_generation_tasks[user_id]
+                    
+                    # 保存SESSION
+                    success = await session_service.save_session(user_id, session_string)
+                    
+                    if success:
+                        # 尝试刷新userbot
+                        try:
+                            from ..core.clients import client_manager
+                            refresh_success = await client_manager.refresh_userbot_session(session_string)
+                            
+                            if refresh_success:
+                                await event.reply(
+                                    "✅ **SESSION 生成成功！**\n\n"
+                                    "• SESSION 已自动保存\n"
+                                    "• Userbot 客户端已启动\n"
+                                    "• 现在可以访问受限内容\n\n"
+                                    "🔐 使用 /mysession 查看您的 SESSION"
+                                )
+                            else:
+                                await event.reply(
+                                    "✅ **SESSION 生成成功！**\n\n"
+                                    "• SESSION 已自动保存\n"
+                                    "• Userbot 启动失败，请重启机器人\n\n"
+                                    "🔐 使用 /mysession 查看您的 SESSION"
+                                )
+                        except Exception as refresh_error:
+                            self.logger.error(f"刷新失败: {refresh_error}")
                             await event.reply(
                                 "✅ **SESSION 生成成功！**\n\n"
-                                "SESSION 已自动保存到数据库\n"
-                                "Userbot 客户端已自动更新并启动成功\n\n"
+                                "• SESSION 已自动保存\n"
+                                "• 请重启机器人使配置生效\n\n"
                                 "🔐 使用 /mysession 查看您的 SESSION"
                             )
-                        else:
-                            await event.reply(
-                                "✅ **SESSION 生成成功！**\n\n"
-                                "SESSION 已自动保存到数据库\n"
-                                "但Userbot客户端启动失败，请检查日志或重启机器人\n\n"
-                                "🔐 使用 /mysession 查看您的 SESSION"
-                            )
-                    except Exception as refresh_error:
-                        self.logger.error(f"动态刷新 SESSION 失败: {refresh_error}")
+                    else:
                         await event.reply(
-                            "✅ **SESSION 生成成功！**\n\n"
-                            "SESSION 已自动保存到数据库\n"
-                            "Userbot 客户端已自动更新，无需重启机器人\n\n"
-                            "🔐 使用 /mysession 查看您的 SESSION"
+                            f"✅ **SESSION 生成成功！**\n\n"
+                            f"您的 SESSION: `{session_string}`\n\n"
+                            f"⚠️ 自动保存失败，请手动保存"
                         )
-                else:
-                    await event.reply(
-                        f"✅ **SESSION 生成成功！**\n\n"
-                        f"您的 SESSION 字符串：\n\n"
-                        f"`{session_string}`\n\n"
-                        f"⚠️ 但自动保存失败，请手动保存到 .env 文件"
-                    )
+                        
+                except Exception as export_error:
+                    await event.reply(f"❌ 生成SESSION失败: {str(export_error)}")
+                    await temp_client.disconnect()
+                    del self.session_generation_tasks[user_id]
             
             elif step == 'password':
                 # 处理两步验证密码
