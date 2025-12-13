@@ -541,7 +541,11 @@ class SessionPlugin(BasePlugin):
                     f"temp_session_{user_id}",
                     api_id=data['api_id'],
                     api_hash=data['api_hash'],
-                    device_model="TG-Content-Bot Session Generator"
+                    device_model="iPhone 15 Pro",
+                    system_version="iOS 17.0",
+                    app_version="10.0.0",
+                    lang_code="en",
+                    system_lang_code="en-US"
                 )
                 
                 try:
