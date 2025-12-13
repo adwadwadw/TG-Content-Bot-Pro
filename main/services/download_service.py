@@ -269,7 +269,8 @@ class VideoDownloader:
             
             # 解析消息链接
             import re
-            link_pattern = r'(?:https?://)?(?:t\.me|telegram\.me)/(\w+)/(\d+)'  # 匹配格式: t.me/channel_name/123
+            # 匹配多种格式：t.me/channel_name/123, https://t.me/channel_name/123, t.me/c/channel_id/123
+            link_pattern = r'(?:https?://)?(?:t\.me|telegram\.me)/(?:c/)?(\w+)/(\d+)'
             match = re.match(link_pattern, msg_link)
             
             if not match:
@@ -297,14 +298,30 @@ class VideoDownloader:
                 
                 # 检查消息是否包含媒体
                 if not message.media:
-                    await status_msg.edit("❌ 消息不包含媒体")
+                    # 如果没有媒体，检查是否是文本消息
+                    if message.text:
+                        await status_msg.edit("❌ 消息不包含媒体")
+                    else:
+                        await status_msg.edit("❌ 消息不包含媒体或文本内容")
                     return False
                 
                 # 下载媒体到本地
                 await status_msg.edit("✅ 正在下载媒体...")
                 
-                # 使用Telethon的download_media方法下载媒体
-                media_path = await telethon_bot.download_media(message)
+                # 使用Telethon的download_media方法下载媒体，支持进度回调
+                from ..utils.media_utils import hhmmss
+                
+                # 定义下载进度回调
+                async def download_progress(current, total):
+                    if total > 0:
+                        percent = (current / total) * 100
+                        await status_msg.edit(f"✅ 正在下载媒体...\n进度: {percent:.1f}%")
+                
+                # 下载媒体
+                media_path = await telethon_bot.download_media(
+                    message,
+                    progress_callback=download_progress
+                )
                 
                 if not media_path or not os.path.exists(media_path):
                     await status_msg.edit("❌ 媒体下载失败")
@@ -313,8 +330,20 @@ class VideoDownloader:
                 # 发送媒体给用户
                 await status_msg.edit("✅ 正在上传媒体...")
                 
-                # 发送媒体
-                await telethon_bot.send_file(sender, media_path)
+                # 定义上传进度回调
+                async def upload_progress(current, total):
+                    if total > 0:
+                        percent = (current / total) * 100
+                        await status_msg.edit(f"✅ 正在上传媒体...\n进度: {percent:.1f}%")
+                
+                # 发送媒体，支持自定义缩略图
+                await telethon_bot.send_file(
+                    sender, 
+                    media_path,
+                    caption=message.text if message.text else None,
+                    progress_callback=upload_progress,
+                    reply_to=edit_id if edit_id else None
+                )
                 
                 # 清理临时文件
                 self.cleanup(media_path)

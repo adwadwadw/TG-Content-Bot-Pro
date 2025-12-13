@@ -10,6 +10,9 @@ from pyrogram.errors import FloodWait, InviteHashInvalid, InviteHashExpired, Use
 
 from ..exceptions.telegram import SessionException
 from .file_manager import file_manager
+from ..utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 def hhmmss(seconds: int) -> str:
     """将秒数转换为HH:MM:SS格式"""
