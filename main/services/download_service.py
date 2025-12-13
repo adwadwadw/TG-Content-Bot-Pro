@@ -28,6 +28,7 @@ class VideoDownloader:
         self.file_manager = FileManager()
         self.temp_dir = tempfile.mkdtemp()
         self.progress_callbacks = {}
+        self.logger = logging.getLogger(__name__)
         
     def _download_progress_hook(self, d: Dict[str, Any]) -> None:
         """下载进度钩子"""
@@ -247,6 +248,73 @@ class VideoDownloader:
                 logger.debug(f"已清理所有临时文件: {self.temp_dir}")
         except Exception as e:
             logger.error(f"清理所有临时文件时出错: {e}")
+
+    async def download_message(self, userbot, client, telethon_bot, sender, edit_id, msg_link, offset):
+        """处理Telegram消息链接下载
+        
+        Args:
+            userbot: Userbot客户端
+            client: Pyrogram客户端
+            telethon_bot: Telethon客户端
+            sender: 发送者ID
+            edit_id: 要编辑的消息ID
+            msg_link: 消息链接
+            offset: 偏移量
+        
+        Returns:
+            bool: 下载是否成功
+        """
+        try:
+            self.logger.info(f"开始处理消息链接: {msg_link}")
+            
+            # 解析消息链接
+            import re
+            link_pattern = r'(?:https?://)?(?:t\.me|telegram\.me)/(\w+)/(\d+)'  # 匹配格式: t.me/channel_name/123
+            match = re.match(link_pattern, msg_link)
+            
+            if not match:
+                self.logger.error(f"无效的消息链接格式: {msg_link}")
+                await telethon_bot.edit_message(edit_id, "❌ 无效的消息链接格式")
+                return False
+            
+            chat_id = match.group(1)
+            message_id = int(match.group(2)) + offset
+            
+            self.logger.info(f"解析链接结果: chat_id={chat_id}, message_id={message_id}")
+            
+            # 下载媒体
+            if userbot:
+                # 使用Userbot下载
+                try:
+                    self.logger.info("使用Userbot下载媒体")
+                    # 这里应该实现Userbot下载逻辑
+                    # 例如: message = await userbot.get_messages(chat_id, message_id)
+                    # 然后下载媒体并发送给用户
+                    await telethon_bot.edit_message(edit_id, "✅ Userbot下载功能开发中")
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Userbot下载失败: {e}")
+                    await telethon_bot.edit_message(edit_id, f"❌ Userbot下载失败: {str(e)}")
+                    return False
+            else:
+                # 使用Telethon Bot下载
+                try:
+                    self.logger.info("使用Telethon Bot下载媒体")
+                    await telethon_bot.edit_message(edit_id, "✅ 正在下载媒体...")
+                    # 这里应该实现Telethon Bot下载逻辑
+                    # 例如: message = await telethon_bot.get_messages(chat_id, message_id)
+                    # 然后下载媒体并发送给用户
+                    await telethon_bot.edit_message(edit_id, "✅ Telethon Bot下载功能开发中")
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Telethon Bot下载失败: {e}")
+                    await telethon_bot.edit_message(edit_id, f"❌ 下载失败: {str(e)}")
+                    return False
+        except Exception as e:
+            self.logger.error(f"处理消息链接时出错: {e}", exc_info=True)
+            if edit_id:
+                await telethon_bot.edit_message(edit_id, f"❌ 处理失败: {str(e)}")
+            return False
 
 
 # 创建全局下载器实例

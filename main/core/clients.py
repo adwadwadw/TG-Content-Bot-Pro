@@ -136,13 +136,13 @@ class ClientManager:
         
         # 创建Userbot客户端
         userbot = Client(
+            "Userbot",
             session_string=corrected_session,
             api_hash=settings.API_HASH,
             api_id=settings.API_ID,
-            sleep_threshold=0,  # 禁用连接池，提高稳定性
-            app_version="10.0.0",
-            device_model="iPhone 15 Pro",
-            system_version="iOS 17.0",
+            app_version="10.2.0",
+            device_model="iPhone 16 Pro",
+            system_version="iOS 18.0",
             lang_code="en"
         )
         
