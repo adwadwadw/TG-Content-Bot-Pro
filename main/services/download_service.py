@@ -305,31 +305,36 @@ class VideoDownloader:
                         await status_msg.edit("❌ 消息不包含媒体或文本内容")
                     return False
                 
-                # 先尝试直接转发（最快方式）
+                # 从配置中获取是否禁用下载-上传模式
+                from ..config import settings
+                
+                # 尝试使用copy_message（更可靠的方式）
                 try:
-                    await status_msg.edit("✅ 正在直接转发媒体...")
+                    await status_msg.edit("✅ 正在复制媒体...")
                     
-                    # 使用forward_messages直接转发
-                    await telethon_bot.forward_messages(
+                    # 使用copy_message复制消息（不使用forward_messages，避免reply_to问题）
+                    await telethon_bot.copy_message(
                         sender,
-                        message,
-                        reply_to=edit_id if edit_id else None
+                        chat_entity,
+                        message_id
                     )
                     
-                    # 转发成功
-                    await status_msg.edit("✅ 转发完成")
-                    self.logger.info(f"成功直接转发媒体: {msg_link}")
+                    await status_msg.edit("✅ 复制完成")
+                    self.logger.info(f"成功复制媒体: {msg_link}")
                     return True
-                except Exception as forward_error:
-                    # 转发失败，回退到下载-上传模式
-                    self.logger.warning(f"直接转发失败，回退到下载模式: {forward_error}")
-                    await status_msg.edit("✅ 直接转发失败，尝试下载模式...")
+                except Exception as copy_error:
+                    self.logger.warning(f"复制失败: {copy_error}")
+                    
+                    # 如果禁用了下载-上传模式，返回错误
+                    if settings.DISABLE_DOWNLOAD_UPLOAD:
+                        await status_msg.edit("❌ 复制失败，且下载-上传模式已禁用")
+                        return False
+                    
+                    # 回退到下载-上传模式
+                    await status_msg.edit("✅ 复制失败，尝试下载模式...")
                 
                 # 下载媒体到本地
                 await status_msg.edit("✅ 正在下载媒体...")
-                
-                # 使用Telethon的download_media方法下载媒体，支持进度回调
-                from ..utils.media_utils import hhmmss
                 
                 # 定义下载进度回调
                 async def download_progress(current, total):
@@ -356,7 +361,7 @@ class VideoDownloader:
                         percent = (current / total) * 100
                         await status_msg.edit(f"✅ 正在上传媒体...\n进度: {percent:.1f}%")
                 
-                # 发送媒体，支持自定义缩略图
+                # 发送媒体
                 await telethon_bot.send_file(
                     sender, 
                     media_path,
