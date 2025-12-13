@@ -4,13 +4,15 @@
 """
 import asyncio
 import logging
+import os
 from typing import Optional
 
 from telethon import events
 from telethon.tl.custom import Message
 from pyrogram import filters
 
-from ..core.base_plugin import BasePlugin, plugin_registry
+from ..core.base_plugin import BasePlugin
+from ..core.base_plugin import plugin_registry as _plugin_registry
 from ..core.clients import client_manager
 from ..services.download_service import download_service
 from ..services.traffic_service import traffic_service
@@ -320,4 +322,4 @@ class DownloadCommands(BasePlugin):
 
 # 创建插件实例并注册
 download_commands = DownloadCommands()
-plugin_registry.register(download_commands)
+_plugin_registry.register(download_commands)
