@@ -584,7 +584,6 @@ class SessionPlugin(BasePlugin):
                     device_model="iPhone 15 Pro",
                     system_version="iOS 17.0",
                     lang_code="en",
-                    system_lang_code="en-US",
                     in_memory=True,
                     sleep_threshold=0  # 禁用连接池，提高稳定性
                 )
