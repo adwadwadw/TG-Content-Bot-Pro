@@ -74,7 +74,12 @@ class ClientManager:
                 "SaveRestricted",
                 bot_token=settings.BOT_TOKEN,
                 api_id=settings.API_ID,
-                api_hash=settings.API_HASH
+                api_hash=settings.API_HASH,
+                app_version="10.2.0",
+                device_model="iPhone 15 Pro Max",
+                system_version="iOS 17.5",
+                lang_code="en",
+                timeout=30
             )
             
             logger.info("Pyrogram bot客户端实例创建完成")
