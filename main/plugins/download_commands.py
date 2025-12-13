@@ -21,18 +21,16 @@ from ..exceptions.telegram import DownloadFailedException
 logger = logging.getLogger(__name__)
 
 
-@plugin_registry.register
 class DownloadCommands(BasePlugin):
     """下载命令插件"""
     
-    plugin_name = "download_commands"
-    
     def __init__(self):
         """初始化插件"""
+        super().__init__("download_commands")
         self.telethon_client = client_manager.bot
         self.pyrogram_client = client_manager.pyrogram_bot
     
-    async def load(self):
+    async def on_load(self):
         """加载插件"""
         logger.info("加载下载命令插件")
         
@@ -306,7 +304,7 @@ class DownloadCommands(BasePlugin):
             logger.error(f"处理 Pyrogram 下载命令时出错: {e}")
             await message.reply(f"处理命令时出错: {e}")
     
-    async def unload(self):
+    async def on_unload(self):
         """卸载插件"""
         logger.info("卸载下载命令插件")
         # Telethon 事件处理器会在客户端停止时自动清理
@@ -318,3 +316,8 @@ class DownloadCommands(BasePlugin):
 /dl <视频链接> - 下载视频
 /adl <视频链接> - 下载音频
 支持 YouTube、Instagram、Facebook 等平台"""
+
+
+# 创建插件实例并注册
+download_commands = DownloadCommands()
+plugin_registry.register(download_commands)
