@@ -563,13 +563,14 @@ class SessionPlugin(BasePlugin):
                     await event.reply("❌ 手机号码必须包含国家代码(以 + 开头)，请重新发送\n\n💡 **正确格式**: +8613800138000")
                     return
                 
-                # 验证手机号码格式
+                # 验证手机号码格式，允许包含空格
+                cleaned_phone = re.sub(r'\s+', '', text)  # 去除所有空格
                 phone_pattern = r'^\+[1-9]\d{1,14}$'
-                if not re.match(phone_pattern, text):
+                if not re.match(phone_pattern, cleaned_phone):
                     await event.reply("❌ 手机号码格式无效，请检查并重新发送\n\n💡 **示例格式**: +8613800138000")
                     return
                 
-                data['phone'] = text
+                data['phone'] = cleaned_phone  # 保存去除空格后的手机号码
                 phone_number = data['phone']
                 
                 await event.reply("⏳ 正在连接 Telegram 服务器，请稍候...")
