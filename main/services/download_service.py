@@ -10,7 +10,6 @@ from typing import Optional, Tuple, Any, Union
 
 from pyrogram import Client
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
-from pyrogram.enums import MessageMediaType
 from telethon import TelegramClient
 from telethon.tl.types import DocumentAttributeVideo
 from ethon.pyfunc import video_metadata
