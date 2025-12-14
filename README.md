@@ -89,25 +89,6 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
-### Render平台部署
-
-本项目已针对Render平台进行了优化，您可以轻松地将机器人部署到Render上：
-
-1. 在Render上创建一个新的Web Service
-2. 连接到您的GitHub仓库
-3. 选择Docker环境进行部署
-4. 在环境变量中配置以下必需的变量：
-   - `API_ID`: 您的Telegram API ID
-   - `API_HASH`: 您的Telegram API Hash
-   - `BOT_TOKEN`: 您的Telegram Bot Token
-   - `AUTH`: 您的Telegram用户ID（可以是单个ID或逗号分隔的多个ID）
-   - `MONGO_DB`: MongoDB连接字符串
-
-5. 部署时将使用项目中的Dockerfile进行构建
-6. 健康检查端口已设置为8089，与应用配置一致
-
-**注意事项**：
-- Render平台免费套餐有512MB内存限制，请根据需要调整应用配置
 - 建议使用外部MongoDB服务（如MongoDB Atlas）而不是Render提供的数据库
 - 如果遇到连接问题，请检查Render的区域设置是否与您的代理配置兼容
 
