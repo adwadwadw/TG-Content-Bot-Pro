@@ -162,12 +162,7 @@ class ClientManager:
     
     def _sanitize_session_string(self, session_string: str) -> str:
         """清理和验证SESSION字符串"""
-        # Pyrogram SESSION格式特殊，直接使用
-        if session_string.startswith(("1", "2", "3")):
-            logger.info("检测到Pyrogram SESSION格式，直接使用")
-            return session_string
-        
-        # 对于非标准格式，进行基本清理
+        # 清理字符串，移除前后的||和其他非标准字符
         import re
         cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', session_string)
         

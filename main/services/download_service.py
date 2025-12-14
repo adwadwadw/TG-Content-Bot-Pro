@@ -269,8 +269,7 @@ class VideoDownloader:
             
             # 解析消息链接
             import re
-            # 匹配多种格式：t.me/channel_name/123, https://t.me/channel_name/123, t.me/c/channel_id/123
-            link_pattern = r'(?:https?://)?(?:t\.me|telegram\.me)/(?:c/)?(\w+)/(\d+)'
+            link_pattern = r'(?:https?://)?(?:t\.me|telegram\.me)/(\w+)/(\d+)'  # 匹配格式: t.me/channel_name/123
             match = re.match(link_pattern, msg_link)
             
             if not match:
@@ -285,99 +284,54 @@ class VideoDownloader:
             self.logger.info(f"解析链接结果: chat_id={chat_id}, message_id={message_id}")
             
             # 发送处理状态
-            status_msg = await telethon_bot.send_message(sender, "✅ 正在处理媒体...")
+            await telethon_bot.send_message(sender, "✅ 正在下载媒体...")
             
-            # 尝试获取聊天实体和消息
-            try:
-                # 获取聊天实体
-                chat_entity = await telethon_bot.get_entity(chat_id)
-                await status_msg.edit(f"✅ 正在获取消息...")
-                
-                # 尝试获取消息
-                message = await telethon_bot.get_messages(chat_entity, ids=message_id)
-                
-                # 检查消息是否包含媒体
-                if not message.media:
-                    # 如果没有媒体，检查是否是文本消息
-                    if message.text:
-                        await status_msg.edit("❌ 消息不包含媒体")
-                    else:
-                        await status_msg.edit("❌ 消息不包含媒体或文本内容")
-                    return False
-                
-                # 从配置中获取是否禁用下载-上传模式
-                from ..config import settings
-                
-                # 尝试使用消息对象的forward_to方法转发（更可靠）
+            # 下载媒体
+            if userbot:
+                # 使用Userbot下载
                 try:
-                    await status_msg.edit("✅ 正在转发媒体...")
+                    self.logger.info("使用Userbot下载媒体")
+                    # 尝试获取聊天实体
+                    chat_entity = await userbot.get_entity(chat_id)
+                    # 尝试获取消息
+                    message = await userbot.get_messages(chat_entity, ids=message_id)
                     
-                    # 使用消息对象的forward_to方法转发
-                    await message.forward_to(sender)
-                    
-                    await status_msg.edit("✅ 转发完成")
-                    self.logger.info(f"成功转发媒体: {msg_link}")
-                    return True
-                except Exception as forward_error:
-                    self.logger.warning(f"转发失败: {forward_error}")
-                    
-                    # 如果禁用了下载-上传模式，返回错误
-                    if settings.DISABLE_DOWNLOAD_UPLOAD:
-                        await status_msg.edit("❌ 转发失败，且下载-上传模式已禁用")
+                    # 检查消息是否包含媒体
+                    if not message.media:
+                        await telethon_bot.send_message(sender, "❌ 消息不包含媒体")
                         return False
                     
-                    # 回退到下载-上传模式
-                    await status_msg.edit("✅ 转发失败，尝试下载模式...")
-                
-                # 下载媒体到本地
-                await status_msg.edit("✅ 正在下载媒体...")
-                
-                # 定义下载进度回调
-                async def download_progress(current, total):
-                    if total > 0:
-                        percent = (current / total) * 100
-                        await status_msg.edit(f"✅ 正在下载媒体...\n进度: {percent:.1f}%")
-                
-                # 下载媒体
-                media_path = await telethon_bot.download_media(
-                    message,
-                    progress_callback=download_progress
-                )
-                
-                if not media_path or not os.path.exists(media_path):
-                    await status_msg.edit("❌ 媒体下载失败")
+                    # 转发消息给用户
+                    await userbot.forward_messages(sender, chat_entity, message_id)
+                    await telethon_bot.send_message(sender, "✅ 转发完成")
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Userbot下载失败: {e}")
+                    await telethon_bot.send_message(sender, f"❌ Userbot下载失败: {str(e)}")
                     return False
-                
-                # 发送媒体给用户
-                await status_msg.edit("✅ 正在上传媒体...")
-                
-                # 定义上传进度回调
-                async def upload_progress(current, total):
-                    if total > 0:
-                        percent = (current / total) * 100
-                        await status_msg.edit(f"✅ 正在上传媒体...\n进度: {percent:.1f}%")
-                
-                # 发送媒体
-                await telethon_bot.send_file(
-                    sender, 
-                    media_path,
-                    caption=message.text if message.text else None,
-                    progress_callback=upload_progress,
-                    reply_to=edit_id if edit_id else None
-                )
-                
-                # 清理临时文件
-                self.cleanup(media_path)
-                
-                # 更新状态消息
-                await status_msg.edit("✅ 下载完成")
-                
-                self.logger.info(f"成功下载并发送媒体: {msg_link}")
-                return True
-            except Exception as e:
-                self.logger.error(f"处理媒体失败: {e}")
-                await status_msg.edit(f"❌ 处理失败: {str(e)}")
-                return False
+            else:
+                # 使用Telethon Bot下载
+                try:
+                    self.logger.info("使用Telethon Bot下载媒体")
+                    # 尝试获取聊天实体
+                    chat_entity = await telethon_bot.get_entity(chat_id)
+                    
+                    # 尝试获取消息
+                    message = await telethon_bot.get_messages(chat_entity, ids=message_id)
+                    
+                    # 检查消息是否包含媒体
+                    if not message.media:
+                        await telethon_bot.send_message(sender, "❌ 消息不包含媒体")
+                        return False
+                    
+                    # 直接转发消息给用户
+                    await telethon_bot.forward_messages(sender, chat_entity, message_id)
+                    await telethon_bot.send_message(sender, "✅ 转发完成")
+                    return True
+                except Exception as e:
+                    self.logger.error(f"Telethon Bot下载失败: {e}")
+                    await telethon_bot.send_message(sender, f"❌ 下载失败: {str(e)}")
+                    return False
         except Exception as e:
             self.logger.error(f"处理消息链接时出错: {e}", exc_info=True)
             try:
