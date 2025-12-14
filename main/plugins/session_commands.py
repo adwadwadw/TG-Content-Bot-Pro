@@ -1,18 +1,21 @@
 """会话管理插件"""
-import re
+
 import asyncio
-import time
-from typing import List, Dict, Any, Optional
-from pyrogram import Client
+import logging
+import re
+from typing import Dict, Any, Optional, List
+
+from telethon import Button
+from telethon.tl.types import User
 
 from ..core.base_plugin import BasePlugin
-from ..core.clients import client_manager
-from ..config import settings
-from ..services.session_service import session_service
-from ..services.user_service import user_service
 from ..services.permission_service import permission_service
+from ..services.user_service import user_service
+from ..services.session_service import session_service
+from ..utils.session_utils import validate_pyrogram_session, get_session_info
 
-from telethon import events, Button
+logger = logging.getLogger(__name__)
+
 
 class SessionPlugin(BasePlugin):
     """会话管理插件"""
@@ -83,52 +86,18 @@ class SessionPlugin(BasePlugin):
         if session_string.startswith('+') and len(session_string) < 20:
             return False, "这看起来像是手机号码，请在SESSION生成流程中使用"
         
-        # 参考开源项目，采用更智能的SESSION验证逻辑
-        
-        # 对于Pyrogram SESSION格式（以1、2、3开头），直接通过验证
+        # 对于Pyrogram SESSION格式（以1、2、3开头），使用专业验证
         if session_string.startswith(('1', '2', '3')):
-            if len(session_string) >= 100:  # Pyrogram SESSION通常较长
+            if validate_pyrogram_session(session_string):
                 return True, "有效的Pyrogram SESSION格式"
             else:
-                return False, f"SESSION长度异常: {len(session_string)} 字符（Pyrogram SESSION应较长）"
+                return False, f"Pyrogram SESSION格式无效，长度: {len(session_string)} 字符"
         
-        # 对于其他SESSION格式，进行Base64验证
-        # 清理字符串，移除所有非base64字符
-        cleaned_session = re.sub(r'[^A-Za-z0-9+/=_-]', '', session_string)
+        # 对于其他SESSION格式，检查基本长度
+        if len(session_string) >= 50:
+            return True, "有效的SESSION格式"
         
-        # 如果清理后字符串为空，说明格式严重错误
-        if not cleaned_session:
-            return False, "SESSION格式严重错误，无法识别有效字符"
-        
-        # 基本长度检查（参考开源项目的最小长度要求）
-        if len(cleaned_session) < 50:
-            return False, f"SESSION字符串长度不足: {len(cleaned_session)} 字符（最小50字符）"
-        
-        # URL-safe base64 转换为标准 base64
-        cleaned_session = cleaned_session.replace('-', '+').replace('_', '/')
-        
-        # 移除已有的等号，重新计算填充
-        cleaned_session = cleaned_session.rstrip('=')
-        
-        # 自动添加正确的填充（Base64长度必须是4的倍数）
-        padding_needed = (4 - len(cleaned_session) % 4) % 4
-        if padding_needed > 0:
-            cleaned_session += '=' * padding_needed
-        
-        # 验证是否符合Base64模式
-        if re.match(r'^[A-Za-z0-9+/]*={0,2}$', cleaned_session):
-            # 尝试解码以进一步验证
-            try:
-                import base64
-                decoded = base64.b64decode(cleaned_session)
-                if len(decoded) >= 10:  # 解码后应有合理长度
-                    return True, "有效的SESSION格式"
-                else:
-                    return False, "SESSION解码后数据长度异常"
-            except Exception:
-                return False, "SESSION无法正确解码"
-        
-        return False, "SESSION字符串不符合Base64格式"
+        return False, f"SESSION字符串长度不足: {len(session_string)} 字符（最小50字符）"
     
     async def _add_session(self, event):
         """添加 SESSION 字符串"""
@@ -167,8 +136,8 @@ class SessionPlugin(BasePlugin):
                 await event.reply(f"❌ {message}\n\n请确保您发送的是有效的 SESSION 字符串。")
                 return
             
-            # 使用清理后的 SESSION 字符串
-            cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', session_string)
+            # 对于Pyrogram v2，我们几乎不做清理，只做基本处理
+            cleaned_session = session_string.strip() if session_string else session_string
             
             # 添加用户
             user = await event.get_sender()
@@ -336,6 +305,22 @@ class SessionPlugin(BasePlugin):
             # 创建一个可以一键复制的格式
             msg = "🔐 **您的 SESSION 信息**\n\n"
             msg += f"用户ID: `{event.sender_id}`\n\n"
+            
+            # 添加SESSION详细信息
+            session_info = get_session_info(session)
+            if session_info:
+                msg += "**SESSION详情**:\n"
+                if "dc_id" in session_info:
+                    msg += f"  DC ID: {session_info['dc_id']}\n"
+                if "api_id" in session_info:
+                    msg += f"  API ID: {session_info['api_id']}\n"
+                if "user_id" in session_info:
+                    msg += f"  用户ID: {session_info['user_id']}\n"
+                if "is_bot" in session_info:
+                    msg += f"  是否机器人: {'是' if session_info['is_bot'] else '否'}\n"
+                msg += f"  长度: {session_info.get('length', len(session))} 字符\n"
+                msg += f"  有效性: {'✅ 有效' if session_info.get('valid', False) else '❌ 无效'}\n\n"
+            
             msg += "**SESSION**（点击下方文本即可全选复制）:\n"
             msg += f"||`{session}`||\n\n"  # 使用隐藏文本格式，点击即可全选
             msg += "👉 **使用方法**:\n"
@@ -582,14 +567,14 @@ class SessionPlugin(BasePlugin):
                     
                     del self.session_generation_tasks[user_id]
                     
-                    # 更新全局配置中的SESSION
-                    from ..config import settings
-                    settings.SESSION = session_string
-                    
                     # 保存SESSION
                     success = await session_service.save_session(user_id, session_string)
                     
                     if success:
+                        # 更新全局配置中的SESSION
+                        from ..config import settings
+                        settings.SESSION = session_string
+                        
                         # 尝试刷新userbot
                         try:
                             from ..core.clients import client_manager
@@ -620,7 +605,7 @@ class SessionPlugin(BasePlugin):
                             )
                     else:
                         await event.reply("❌ SESSION保存失败，请稍后重试")
-                        
+
                 except Exception as e:
                     err_str = str(e).lower()
                     if "password" in err_str or "two" in err_str:

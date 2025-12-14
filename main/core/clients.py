@@ -1,12 +1,18 @@
 """Telegram客户端管理模块"""
+
+import asyncio
 import logging
-from typing import Optional, Dict, Any
+from typing import Dict, Any, Optional
+
 from pyrogram import Client
-from telethon.sync import TelegramClient
+from telethon import TelegramClient
 
 from ..config import settings
 from ..services.session_service import session_service
+from ..services.permission_service import permission_service
+from ..services.user_service import user_service
 from ..utils.security import security_manager
+from ..utils.session_utils import sanitize_pyrogram_session, validate_pyrogram_session
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +21,7 @@ class ClientManager:
     """Telegram客户端管理器"""
     
     def __init__(self):
-        self.bot: Optional[TelegramClient] = None
+        self.bot: Optional[Client] = None
         self.userbot: Optional[Client] = None
         self.pyrogram_bot: Optional[Client] = None
         self.session_svc = session_service
@@ -162,16 +168,20 @@ class ClientManager:
     
     def _sanitize_session_string(self, session_string: str) -> str:
         """清理和验证SESSION字符串"""
-        # 清理字符串，移除前后的||和其他非标准字符
-        import re
-        cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', session_string)
+        if not session_string:
+            logger.warning("SESSION字符串为空")
+            return session_string
+            
+        # 使用专门的工具函数清理Pyrogram SESSION
+        cleaned = sanitize_pyrogram_session(session_string)
         
-        if len(cleaned_session) >= 50:  # 基本长度检查
-            logger.info("SESSION已清理，长度: %d", len(cleaned_session))
-            return cleaned_session
-        
-        logger.warning("SESSION长度不足，将尝试使用原始字符串")
-        return session_string
+        # 验证SESSION格式
+        if validate_pyrogram_session(cleaned):
+            logger.info(f"SESSION验证通过，长度: {len(cleaned)}")
+        else:
+            logger.warning(f"SESSION验证失败，长度: {len(cleaned)}")
+            
+        return cleaned
     
     async def _handle_userbot_start_error(self, error: Exception, session_string: str):
         """处理Userbot启动错误"""

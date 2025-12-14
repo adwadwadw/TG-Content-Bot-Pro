@@ -1,4 +1,5 @@
 """会话服务模块"""
+
 import logging
 import hashlib
 import secrets
@@ -12,6 +13,7 @@ import base64
 from ..core.database import db_manager
 from ..config import settings
 from ..exceptions.telegram import SessionException
+from ..utils.session_utils import sanitize_pyrogram_session, validate_pyrogram_session
 
 logger = logging.getLogger(__name__)
 
@@ -92,21 +94,18 @@ class SessionService:
         
         # 验证SESSION格式
         if not self._validate_session_format(session_string):
-            logger.warning("SESSION格式无效")
+            logger.warning("SESSION格式可能无效")
             # 即使验证失败，也允许保存
             pass
         
-        # 使用清理后的SESSION字符串
-        import re
-        cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', session_string)
+        # 使用专门的工具函数清理Pyrogram SESSION
+        cleaned_session = sanitize_pyrogram_session(session_string)
         
         # 加密SESSION
         encrypted_session = self._encrypt_session(cleaned_session if cleaned_session else session_string)
+        # 如果加密失败，使用原始SESSION
         if encrypted_session is None:
-            # 如果加密失败，使用原始SESSION
-            encrypted_session = self._encrypt_session(session_string)
-            if encrypted_session is None:
-                return False
+            encrypted_session = session_string
         
         try:
             # 保存到数据库
@@ -160,8 +159,13 @@ class SessionService:
             # 解密所有SESSION
             for session in sessions:
                 if session.get("session_string"):
-                    # 明文存储，无需解密
-                    session["session_string"] = session["session_string"]
+                    # 解密SESSION
+                    decrypted_session = self._decrypt_session(session["session_string"])
+                    if decrypted_session is not None:
+                        session["session_string"] = decrypted_session
+                    else:
+                        # 解密失败，使用原始值
+                        session["session_string"] = session["session_string"]
             
             return sessions
         except Exception as e:
@@ -187,33 +191,16 @@ class SessionService:
         if not session_string:
             return False
         
-        # 对于Pyrogram SESSION，直接通过验证
-        # Pyrogram SESSION格式与Telethon不同，可能以数字开头且长度较短
-        if session_string.startswith("1") or session_string.startswith("2") or session_string.startswith("3"):
-            return True
+        # 对于Pyrogram SESSION，检查基本特征
+        if session_string.startswith(("1", "2", "3")):
+            # 使用专门的工具函数验证Pyrogram SESSION
+            return validate_pyrogram_session(session_string)
         
-        # 对于其他SESSION，至少需要10个字符
-        if len(session_string) < 10:
-            logger.warning(f"SESSION长度不足: {len(session_string)} 字符")
-            # 即使长度不足，也允许保存
-            return True
-        
-        # 清理字符串，移除所有非base64字符
-        import re
-        cleaned_session = re.sub(r'[^A-Za-z0-9+/=]', '', session_string)
-        
-        # 基本长度检查
-        if len(cleaned_session) < 10:
-            logger.warning(f"清理后的SESSION长度不足: {len(cleaned_session)} 字符")
-            # 即使长度不足，也允许保存
-            return True
-        
-        # 对于可能被截断的字符串，我们采用更宽松的验证
-        # 只要清理后的字符串看起来像Base64格式即可
-        if re.match(r'^[A-Za-z0-9+/]*={0,2}$', cleaned_session):
-            return True
-        
-        # 即使格式不完全匹配，也允许保存
+        # 对于其他SESSION，至少需要一定长度
+        if len(session_string) < 50:
+            logger.warning(f"SESSION长度可能不足: {len(session_string)} 字符")
+            return False
+            
         return True
     
     async def validate_session(self, user_id: int, session_string: str) -> bool:
@@ -246,3 +233,15 @@ class SessionService:
 
 # 全局会话服务实例
 session_service = SessionService()
+
+
+
+
+
+
+
+
+
+
+
+
