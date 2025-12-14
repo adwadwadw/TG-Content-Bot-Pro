@@ -105,20 +105,15 @@ def release_lock():
 
 def start_health_server():
     """启动健康检查HTTP服务器"""
-    port = int(os.getenv('HEALTH_CHECK_PORT', '8089'))
+    port = int(os.getenv("HEALTH_CHECK_PORT", "8089"))
     try:
-        server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
         logger.info(f"✅ 健康检查服务器已启动，端口: {port}")
         server.serve_forever()
     except Exception as e:
         logger.error(f"❌ 启动健康检查服务器失败: {e}")
-        # 如果端口被占用，尝试使用备用端口
-        try:
-            server = HTTPServer(('0.0.0.0', 8081), HealthCheckHandler)
-            logger.info(f"✅ 健康检查服务器已启动，备用端口: 8081")
-            server.serve_forever()
-        except Exception as e2:
-            logger.error(f"❌ 启动备用端口健康检查服务器失败: {e2}")
+        # 不再使用备用端口，确保只在指定端口运行
+        raise
 
 
 def check_and_reset_database():
