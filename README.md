@@ -39,12 +39,86 @@ nano .env  # 或使用您喜欢的编辑器
 
 ### 3. 一键启动
 
+#### 方法一：使用Docker Compose（推荐）
+
 ```bash
 # 使用Docker Compose启动
 docker-compose up -d
 
 # 验证应用状态
 curl http://localhost:8089/health
+```
+
+#### 方法二：一键Docker运行（适用于普通Linux）
+
+```bash
+# 一键运行命令（请替换环境变量为您的实际配置）
+docker run -d \
+  --name tg-content-bot \
+  -p 8089:8089 \
+  -e API_ID=your_api_id \
+  -e API_HASH=your_api_hash \
+  -e BOT_TOKEN=your_bot_token \
+  -e AUTH=your_user_id \
+  -e MONGO_DB=your_mongo_connection \
+  -v $(pwd)/logs:/app/logs \
+  ghcr.io/liwoyuandiane/tg-content-bot-pro:main
+```
+
+#### 方法三：创建一键启动脚本
+
+创建一个简单的启动脚本 `run.sh`：
+
+```bash
+#!/bin/bash
+
+# TG Content Bot Pro 一键启动脚本
+
+# 检查Docker是否安装
+if ! command -v docker &> /dev/null; then
+    echo "❌ 未检测到Docker，请先安装Docker"
+    exit 1
+fi
+
+# 设置环境变量（请根据实际情况修改）
+API_ID="your_api_id"
+API_HASH="your_api_hash"
+BOT_TOKEN="your_bot_token"
+AUTH="your_user_id"
+MONGO_DB="your_mongo_connection"
+
+# 拉取最新镜像
+echo "📥 拉取最新镜像..."
+docker pull ghcr.io/liwoyuandiane/tg-content-bot-pro:main
+
+# 启动容器
+echo "🚀 启动TG Content Bot Pro..."
+docker run -d \
+  --name tg-content-bot \
+  --restart unless-stopped \
+  -p 8089:8089 \
+  -e API_ID=$API_ID \
+  -e API_HASH=$API_HASH \
+  -e BOT_TOKEN=$BOT_TOKEN \
+  -e AUTH=$AUTH \
+  -e MONGO_DB=$MONGO_DB \
+  -v $(pwd)/logs:/app/logs \
+  ghcr.io/liwoyuandiane/tg-content-bot-pro:main
+
+echo "✅ TG Content Bot Pro已启动！"
+echo "应用查看: curl http://localhost:8089/health"
+```
+
+使用方法：
+```bash
+# 给脚本执行权限
+chmod +x run.sh
+
+# 编辑脚本，填入您的配置信息
+nano run.sh
+
+# 运行脚本
+./run.sh
 ```
 
 ## 📋 配置说明
@@ -96,6 +170,7 @@ docker run -d \
   -e BOT_TOKEN=your_bot_token \
   -e AUTH=your_user_id \
   -e MONGO_DB=your_mongo_connection \
+  -v $(pwd)/logs:/app/logs \
   ghcr.io/liwoyuandiane/tg-content-bot-pro:main
 ```
 
@@ -123,10 +198,10 @@ docker-compose down
 
 ```bash
 # HTTP健康检查
-curl http://localhost:8080/health
+curl http://localhost:8089/health
 
 # 状态页面
-curl http://localhost:8080/
+curl http://localhost:8089/
 ```
 
 ### 日志查看
