@@ -140,9 +140,9 @@ class ClientManager:
             session_string=corrected_session,
             api_hash=settings.API_HASH,
             api_id=settings.API_ID,
-            app_version="10.2.0",
-            device_model="iPhone 16 Pro",
-            system_version="iOS 18.0",
+            app_version="Pyrogram 2.0.106",
+            device_model="Session Generator",
+            system_version="Linux 5.4",
             lang_code="en"
         )
         
@@ -191,7 +191,11 @@ class ClientManager:
         if any(keyword in error_msg for keyword in session_error_keywords):
             logger.warning("检测到无效SESSION，正在清理...")
             try:
-                await self.session_svc.delete_session(settings.AUTH)
+                # 使用当前配置的AUTH作为用户ID删除SESSION
+                auth_users = settings.get_auth_users()
+                if auth_users:
+                    user_id = auth_users[0]  # 使用第一个授权用户
+                    await self.session_svc.delete_session(user_id)
                 settings.SESSION = None
                 logger.info("已清理无效SESSION")
             except Exception as e:

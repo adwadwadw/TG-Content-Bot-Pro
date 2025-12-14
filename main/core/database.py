@@ -1071,6 +1071,12 @@ class DatabaseManager:
             
             try:
                 self._ensure_connection()
+                # 先检查用户是否存在且有session
+                user = self.db.users.find_one({"user_id": user_id})
+                if not user or not user.get("session_string"):
+                    # 用户不存在或没有session，认为删除成功
+                    return True
+                
                 result = self.db.users.update_one(
                     {"user_id": user_id},
                     {
@@ -1078,7 +1084,7 @@ class DatabaseManager:
                         "$unset": {"session_updated": ""}
                     }
                 )
-                return result.modified_count > 0
+                return True
             except Exception as e:
                 logger.error(f"删除会话失败: {e}")
                 return False

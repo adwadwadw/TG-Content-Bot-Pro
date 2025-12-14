@@ -182,6 +182,10 @@ class SessionPlugin(BasePlugin):
             # 保存 SESSION
             success = await session_service.save_session(event.sender_id, cleaned_session)
             if success:
+                # 更新全局配置中的SESSION
+                from ..config import settings
+                settings.SESSION = cleaned_session
+                
                 # 尝试动态刷新 userbot SESSION
                 try:
                     from ..core.clients import client_manager
@@ -258,12 +262,15 @@ class SessionPlugin(BasePlugin):
                         if client_manager.userbot:
                             await client_manager.userbot.stop()
                             client_manager.userbot = None
+                            # 更新全局配置中的SESSION
+                            from ..config import settings
                             settings.SESSION = None
                     except Exception as refresh_error:
                         self.logger.error(f"动态刷新 SESSION 失败: {refresh_error}")
                 await event.reply(f"✅ 已删除用户 {target_user_id} 的 SESSION")
             else:
                 await event.reply("❌ 删除失败或 SESSION 不存在")
+
         except Exception as e:
             await event.reply(f"❌ 删除失败: {str(e)}")
     
@@ -428,6 +435,10 @@ class SessionPlugin(BasePlugin):
                 await event.reply("❌ 未找到SESSION，请先使用 /addsession 添加")
                 return
             
+            # 更新全局配置中的SESSION
+            from ..config import settings
+            settings.SESSION = session
+            
             # 尝试刷新Userbot SESSION
             from ..core.clients import client_manager
             success = await client_manager.refresh_userbot_session(session)
@@ -571,6 +582,10 @@ class SessionPlugin(BasePlugin):
                     
                     del self.session_generation_tasks[user_id]
                     
+                    # 更新全局配置中的SESSION
+                    from ..config import settings
+                    settings.SESSION = session_string
+                    
                     # 保存SESSION
                     success = await session_service.save_session(user_id, session_string)
                     
@@ -647,6 +662,10 @@ class SessionPlugin(BasePlugin):
                 message_handler_plugin.mark_user_in_conversation(user_id, False)
                 
                 del self.session_generation_tasks[user_id]
+                
+                # 更新全局配置中的SESSION
+                from ..config import settings
+                settings.SESSION = session_string
                 
                 success = await session_service.save_session(user_id, session_string)
                 
