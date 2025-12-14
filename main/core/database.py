@@ -198,7 +198,7 @@ class DatabaseManager:
         Returns:
             bool: 数据库是否连接成功
         """
-        if not self.client or not self.db:
+        if not self.client or self.db is None:
             return False
         
         try:

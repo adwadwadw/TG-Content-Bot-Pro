@@ -124,10 +124,16 @@ class ClientManager:
     
     async def _load_session_from_service(self):
         """从会话服务加载SESSION"""
-        user_session = await self.session_svc.get_session(settings.AUTH)
-        if user_session:
-            settings.SESSION = user_session
-            logger.info("从会话服务加载SESSION成功")
+        # 获取第一个授权用户ID
+        auth_users = settings.get_auth_users()
+        if auth_users:
+            user_id = auth_users[0]
+            user_session = await self.session_svc.get_session(user_id)
+            if user_session:
+                settings.SESSION = user_session
+                logger.info("从会话服务加载SESSION成功")
+        else:
+            logger.warning("未找到授权用户，无法加载SESSION")
     
     async def _create_and_start_userbot(self):
         """创建并启动Userbot客户端"""
@@ -206,8 +212,8 @@ class ClientManager:
                 if auth_users:
                     user_id = auth_users[0]  # 使用第一个授权用户
                     await self.session_svc.delete_session(user_id)
+                    logger.info(f"已清理用户 {user_id} 的无效SESSION")
                 settings.SESSION = None
-                logger.info("已清理无效SESSION")
             except Exception as e:
                 logger.error(f"清理SESSION时出错: {e}")
         

@@ -5,6 +5,7 @@ import asyncio
 import glob
 import os
 import threading
+from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from pyrogram.types import BotCommand
@@ -60,6 +61,59 @@ def start_health_server():
             server.serve_forever()
         except Exception as e2:
             logger.error(f"❌ 启动备用端口健康检查服务器失败: {e2}")
+
+
+def check_and_reset_database():
+    """检查并重置数据库（如果DB_RESET环境变量为true）"""
+    db_reset = os.environ.get('DB_RESET', '').lower() in ['true', '1', 'yes']
+    
+    if db_reset:
+        logger.info("🔄 检测到 DB_RESET=true，开始重置数据库...")
+        
+        try:
+            if not db_manager.is_connected():
+                logger.error("❌ 数据库未连接，无法执行重置")
+                return False
+                
+            # 删除所有集合中的数据
+            collections = ["users", "message_history", "batch_tasks", "settings"]
+            for collection_name in collections:
+                if collection_name in db_manager.db.list_collection_names():
+                    count = db_manager.db[collection_name].count_documents({})
+                    db_manager.db[collection_name].delete_many({})
+                    logger.info(f"  ✅ 清空集合 {collection_name} ({count} 条记录)")
+            
+            # 重新创建必要的索引
+            logger.info("  🔄 重新创建索引...")
+            db_manager._create_indexes()
+            
+            # 添加主用户
+            auth_users = settings.get_auth_users()
+            for user_id in auth_users:
+                db_manager.db.users.insert_one({
+                    "user_id": user_id,
+                    "is_authorized": True,
+                    "is_banned": False,
+                    "join_date": datetime.now(),
+                    "total_forwards": 0,
+                    "total_size": 0,
+                    "daily_upload": 0,
+                    "daily_download": 0,
+                    "monthly_upload": 0,
+                    "monthly_download": 0,
+                    "total_upload": 0,
+                    "total_download": 0,
+                    "last_reset_daily": datetime.now().date().isoformat(),
+                    "last_reset_monthly": datetime.now().strftime("%Y-%m")
+                })
+                logger.info(f"  ✅ 添加主用户 {user_id}")
+            
+            logger.info("✅ 数据库重置完成")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ 数据库重置过程中出错: {e}")
+            return False
 
 
 async def setup_commands():
@@ -118,6 +172,9 @@ async def startup():
     logger.info("=" * 50)
     logger.info("🤖 TG-Content-Bot-Pro 启动中...")
     logger.info("=" * 50)
+    
+    # 检查并重置数据库（如果需要）
+    check_and_reset_database()
     
     # 配置验证
     try:
