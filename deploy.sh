@@ -244,12 +244,7 @@ SESSION=your_pyrogram_session_string
 FORCESUB=your_channel_username
 HEALTH_CHECK_PORT=8089
 
-# 代理配置（如需要，请取消注释并填写实际值）
-# TELEGRAM_PROXY_SCHEME=socks5
-# TELEGRAM_PROXY_HOST=proxy_host
-# TELEGRAM_PROXY_PORT=1080
-# TELEGRAM_PROXY_USERNAME=proxy_user
-# TELEGRAM_PROXY_PASSWORD=proxy_pass
+
 EOF
             warn "✓ 已创建基础.env文件（请手动配置）"
         fi
@@ -282,7 +277,7 @@ show_env_config_guide() {
     echo "6. FORCESUB: 强制订阅频道用户名（不带@）"
     echo "7. SESSION: Pyrogram会话字符串（可自动生成）"
     echo "8. HEALTH_CHECK_PORT: 健康检查端口（默认8089）"
-    echo "9. TELEGRAM_PROXY_*: 代理配置（如需要）"
+
     echo ""
     echo "快速获取方式："
     echo "- API_ID/API_HASH: 访问 my.telegram.org"

@@ -46,9 +46,7 @@ try:
         # 加载关键环境变量
         env_vars = [
             'API_ID', 'API_HASH', 'BOT_TOKEN', 'AUTH', 'MONGO_DB',
-            'FORCESUB', 'SESSION', 'TELEGRAM_PROXY_SCHEME', 
-            'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT',
-            'HEALTH_CHECK_PORT'
+            'FORCESUB', 'SESSION', 'HEALTH_CHECK_PORT'
         ]
         
         for key in env_vars:

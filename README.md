@@ -125,15 +125,6 @@ docker-compose up -d
 docker-compose logs -f
 ```
 
-### 代理配置验证
-
-您可以通过启动机器人来验证代理配置是否正确：
-
-```bash
-# 启动机器人测试代理配置
-./start.sh
-```
-
 ### 手动部署
 
 ```bash
@@ -156,38 +147,6 @@ nano .env  # 编辑配置
 python3 -m main
 ```
 
-### 代理配置
-
-机器人支持 SOCKS5 和 HTTP 代理，以解决网络连接问题：
-
-1. **SOCKS5 代理配置**：
-   ```bash
-   TELEGRAM_PROXY_SCHEME=socks5
-   TELEGRAM_PROXY_HOST=154.201.86.151
-   TELEGRAM_PROXY_PORT=38512
-   TELEGRAM_PROXY_USERNAME=Ue9h0D55LS
-   TELEGRAM_PROXY_PASSWORD=CaqlJmzRWc
-   ```
-
-2. **HTTP 代理配置**：
-   ```bash
-   TELEGRAM_PROXY_SCHEME=http
-   TELEGRAM_PROXY_HOST=154.201.86.151
-   TELEGRAM_PROXY_PORT=19496
-   TELEGRAM_PROXY_USERNAME=wCBcuVZXd6
-   TELEGRAM_PROXY_PASSWORD=XM1Xdwey02
-   ```
-
-3. **Cloudflare Workers Telegram API 代理**：
-   如果您的服务器无法直接连接到 Telegram API，可以部署 Cloudflare Workers 作为代理：
-   
-   - 部署 `cloudflare-worker.js` 到 Cloudflare Workers
-   - 在 `.env` 文件中配置：
-   ```bash
-   TELEGRAM_API_PROXY_URL=https://your-worker.your-account.workers.dev
-   ```
-   
-   详细配置说明请参考项目文档。
 
 详细配置说明请参考项目文档。
 

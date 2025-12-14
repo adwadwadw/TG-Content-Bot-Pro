@@ -26,9 +26,7 @@ def load_environment_variables():
             # 加载关键环境变量
             env_vars = [
                 'API_ID', 'API_HASH', 'BOT_TOKEN', 'AUTH', 'MONGO_DB',
-                'FORCESUB', 'SESSION', 'TELEGRAM_PROXY_SCHEME', 
-                'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT',
-                'ENCRYPTION_KEY', 'MAX_WORKERS', 'CHUNK_SIZE',
+                'FORCESUB', 'SESSION', 'ENCRYPTION_KEY', 'MAX_WORKERS', 'CHUNK_SIZE',
                 'DEFAULT_DAILY_LIMIT', 'DEFAULT_MONTHLY_LIMIT', 
                 'DEFAULT_PER_FILE_LIMIT', 'DEBUG', 'LOG_LEVEL'
             ]

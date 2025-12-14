@@ -14,10 +14,7 @@ def load_env_file():
         # 将环境变量设置到os.environ中
         env_vars = [
             'API_ID', 'API_HASH', 'BOT_TOKEN', 'AUTH', 'MONGO_DB',
-            'FORCESUB', 'SESSION', 'TELEGRAM_PROXY_SCHEME', 
-            'TELEGRAM_PROXY_HOST', 'TELEGRAM_PROXY_PORT',
-            'TELEGRAM_PROXY_USERNAME', 'TELEGRAM_PROXY_PASSWORD',
-            'ENCRYPTION_KEY'
+            'FORCESUB', 'SESSION', 'ENCRYPTION_KEY'
         ]
         
         for key in env_vars:
