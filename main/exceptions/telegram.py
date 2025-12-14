@@ -20,7 +20,7 @@ class ChannelAccessException(BaseBotException):
         super().__init__(message, "CHANNEL_ACCESS_ERROR")
 
 
-class DownloadFailedException(BaseBotException):
-    """下载失败异常"""
+class ForwardFailedException(BaseBotException):
+    """转发失败异常"""
     def __init__(self, message: str):
-        super().__init__(message, "DOWNLOAD_FAILED_ERROR")
+        super().__init__(message, "FORWARD_FAILED_ERROR")

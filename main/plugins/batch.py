@@ -1,4 +1,4 @@
-"""批量下载插件"""
+"""批量转发插件"""
 import time
 import asyncio
 from typing import Dict
@@ -7,7 +7,7 @@ from ..core.base_plugin import BasePlugin
 from ..core.clients import client_manager
 from ..config import settings
 from ..services.message_service import message_service
-from ..services.download_task_manager import download_task_manager
+# 已移除下载功能，不再需要download_task_manager
 from ..utils.media_utils import get_link
 from ..utils.error_handler import safe_execute
 
@@ -30,7 +30,7 @@ class BatchPlugin(BasePlugin):
         client_manager.bot.add_event_handler(self._batch_command, events.NewMessage(
             incoming=True, pattern='/batch'))
         
-        self.logger.info("批量下载插件事件处理器已注册")
+        self.logger.info("批量转发插件事件处理器已注册")
     
     async def on_unload(self):
         """插件卸载时移除事件处理器"""
@@ -40,7 +40,7 @@ class BatchPlugin(BasePlugin):
         client_manager.bot.remove_event_handler(self._batch_command, events.NewMessage(
             incoming=True, pattern='/batch'))
         
-        self.logger.info("批量下载插件事件处理器已移除")
+        self.logger.info("批量转发插件事件处理器已移除")
     
     async def _cancel_command(self, event):
         """处理 /cancel 命令"""
@@ -59,7 +59,7 @@ class BatchPlugin(BasePlugin):
         
         # 检查 userbot 是否可用
         if client_manager.userbot is None:
-            await event.reply("❌ 未配置 SESSION，无法使用批量下载功能\n\n使用 /addsession 添加 SESSION")
+            await event.reply("❌ 未配置 SESSION，无法使用批量转发功能\n\n使用 /addsession 添加 SESSION")
             return
         
         # 检查强制订阅

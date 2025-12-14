@@ -40,6 +40,10 @@ class MessageHandlerPlugin(BasePlugin):
         
         self.logger.info("消息链接处理插件事件处理器已移除")
     
+    def get_help_text(self):
+        """获取插件帮助文本"""
+        return "自动处理Telegram消息链接，支持公开和私密频道消息转发"
+    
     def mark_user_in_conversation(self, user_id: int, in_conversation: bool = True):
         """标记用户是否在会话中"""
         if in_conversation:

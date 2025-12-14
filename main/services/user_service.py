@@ -62,9 +62,9 @@ class UserService:
         """检查用户是否被授权"""
         return await self.db.is_user_authorized(user_id)
     
-    async def get_total_downloads(self) -> int:
-        """获取总下载数"""
-        return await self.db.get_total_downloads()
+    async def get_total_forwards(self) -> int:
+        """获取总转发数"""
+        return await self.db.get_total_forwards()
 
 
 # 全局用户服务实例

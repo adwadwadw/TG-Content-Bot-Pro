@@ -25,7 +25,7 @@ class TrafficPlugin(BasePlugin):
             incoming=True, pattern='/totaltraffic'))
         client_manager.bot.add_event_handler(self._bot_stats, events.NewMessage(
             incoming=True, pattern='/stats'))
-        client_manager.bot.add_event_handler(self._download_history, events.NewMessage(
+        client_manager.bot.add_event_handler(self._forward_history, events.NewMessage(
             incoming=True, pattern='/history'))
         client_manager.bot.add_event_handler(self._set_traffic_limit, events.NewMessage(
             incoming=True, pattern='/setlimit'))
@@ -43,7 +43,7 @@ class TrafficPlugin(BasePlugin):
             incoming=True, pattern='/totaltraffic'))
         client_manager.bot.remove_event_handler(self._bot_stats, events.NewMessage(
             incoming=True, pattern='/stats'))
-        client_manager.bot.remove_event_handler(self._download_history, events.NewMessage(
+        client_manager.bot.remove_event_handler(self._forward_history, events.NewMessage(
             incoming=True, pattern='/history'))
         client_manager.bot.remove_event_handler(self._set_traffic_limit, events.NewMessage(
             incoming=True, pattern='/setlimit'))
@@ -268,8 +268,8 @@ class TrafficPlugin(BasePlugin):
             # 获取用户统计
             total_users = await user_service.get_all_users_count()
             
-            # 获取下载统计
-            total_downloads = await user_service.get_total_downloads()
+            # 获取转发统计
+            total_forwards = await user_service.get_total_forwards()
             
             # 获取流量统计
             total_traffic = await traffic_service.get_total_traffic()
@@ -280,7 +280,7 @@ class TrafficPlugin(BasePlugin):
             
             msg = "🤖 **机器人统计信息**\n\n"
             msg += f"👥 用户总数: {total_users}\n"
-            msg += f"📥 总下载数: {total_downloads}\n\n"
+            msg += f"📤 总转发数: {total_forwards}\n\n"
             
             if total_traffic:
                 msg += f"📊 **总流量统计**\n"
@@ -295,23 +295,23 @@ class TrafficPlugin(BasePlugin):
         except Exception as e:
             await event.reply(f"❌ 获取统计信息失败: {str(e)}")
     
-    async def _download_history(self, event):
-        """查看下载历史（仅所有者）"""
+    async def _forward_history(self, event):
+        """查看转发历史（仅所有者）"""
         try:
             # 权限检查：只允许所有者使用
             if not await permission_service.require_owner(event.sender_id):
                 await event.reply("❌ 此命令仅限所有者使用")
                 return
             
-            # 从数据库获取最近的下载历史
+            # 从数据库获取最近的转发历史
             from ..core.database import db_manager
-            history = await db_manager.get_recent_download_history(20)  # 获取最近20条记录
+            history = await db_manager.get_recent_forward_history(20)  # 获取最近20条记录
             
             if not history:
-                await event.reply("📭 暂无下载历史")
+                await event.reply("📭 暂无转发历史")
                 return
             
-            msg = "📜 **最近下载历史**\n\n"
+            msg = "📜 **最近转发历史**\n\n"
             
             for record in history:
                 # 格式化时间
@@ -324,14 +324,14 @@ class TrafficPlugin(BasePlugin):
                 # 格式化文件大小
                 file_size = self._format_bytes(record.get('file_size', 0))
                 
-                msg += f"📥 {timestamp.strftime('%m-%d %H:%M')}\n"
+                msg += f"📤 {timestamp.strftime('%m-%d %H:%M')}\n"
                 msg += f"   文件大小: {file_size}\n"
                 msg += f"   状态: {record.get('status', '未知')}\n"
                 msg += f"   类型: {record.get('media_type', '未知')}\n\n"
             
             await event.reply(msg)
         except Exception as e:
-            await event.reply(f"❌ 获取下载历史失败: {str(e)}")
+            await event.reply(f"❌ 获取转发历史失败: {str(e)}")
 
 # 创建插件实例并注册
 traffic_plugin = TrafficPlugin()

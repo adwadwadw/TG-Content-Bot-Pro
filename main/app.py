@@ -70,7 +70,7 @@ async def setup_commands():
         BotCommand("batch", "📦 批量保存消息（仅所有者）"),
         BotCommand("cancel", "❌ 取消批量任务（仅所有者）"),
         BotCommand("stats", "📊 查看统计信息（仅所有者）"),
-        BotCommand("history", "📜 查看下载历史（仅所有者）"),
+        BotCommand("history", "📜 查看转发历史（仅所有者）"),
         BotCommand("queue", "📋 查看队列状态（仅所有者）"),
         BotCommand("traffic", "📊 查看流量统计"),
         BotCommand("totaltraffic", "🌐 查看总流量（仅所有者）"),
@@ -143,14 +143,8 @@ async def startup():
         logger.error(f"客户端初始化失败: {e}", exc_info=True)
         logger.warning("将继续启动应用，但部分功能可能不可用")
     
-    # 启动任务队列
-    try:
-        from .services.download_task_manager import download_task_manager
-        await download_task_manager.start()
-        logger.info("✅ 下载任务队列已启动")
-    except Exception as e:
-        logger.error(f"启动任务队列失败: {e}", exc_info=True)
-        logger.warning("任务队列启动失败，批量下载功能可能不可用")
+    # 启动任务队列（已移除下载功能，跳过任务队列初始化）
+    logger.info("ℹ️  已移除下载功能，跳过任务队列初始化")
     
     # 加载插件
     await load_all_plugins()
@@ -185,13 +179,8 @@ async def shutdown():
     """应用关闭"""
     logger.info("正在关闭应用...")
     
-    # 停止任务队列
-    try:
-        from .services.download_task_manager import download_task_manager
-        await download_task_manager.stop()
-        logger.info("任务队列已停止")
-    except Exception as e:
-        logger.error(f"停止任务队列失败: {e}", exc_info=True)
+    # 停止任务队列（已移除下载功能，跳过任务队列停止）
+    logger.info("ℹ️  已移除下载功能，跳过任务队列停止")
     
     # 停止客户端
     await client_manager.stop_clients()

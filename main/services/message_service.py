@@ -88,12 +88,12 @@ class MessageService:
                     return False
                 
                 # 记录成功转发
-                await self.db.add_download(sender, msg_link, msg_id, str(chat), "forwarded", 0, "success")
+                await self.db.add_forward(sender, msg_link, msg_id, str(chat), "forwarded", 0, "success")
                 return True
                 
             except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid):
                 await client.edit_message_text(sender, edit_id, "您加入该频道了吗？")
-                await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", 0, "failed")
+                await self.db.add_forward(sender, msg_link, msg_id, str(chat), "error", 0, "failed")
                 return False
             except PeerIdInvalid:
                 chat = msg_link.split("/")[-3]
@@ -106,7 +106,7 @@ class MessageService:
             except Exception as e:
                 logger.error(f"转发消息时出错: {e}", exc_info=True)
                 await client.edit_message_text(sender, edit_id, f'转发失败: `{msg_link}`\n\n错误: {str(e)}')
-                await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", 0, "failed")
+                await self.db.add_forward(sender, msg_link, msg_id, str(chat), "error", 0, "failed")
                 return False
         else:
             # 公开频道消息 - 直接复制
@@ -115,12 +115,12 @@ class MessageService:
             try:
                 await client.copy_message(sender, chat, msg_id)
                 # 记录成功复制
-                await self.db.add_download(sender, msg_link, msg_id, chat, "copied", 0, "success")
+                await self.db.add_forward(sender, msg_link, msg_id, chat, "copied", 0, "success")
                 await edit.delete()
             except Exception as e:
                 logger.error(f"复制消息时出错: {e}", exc_info=True)
                 # 记录失败
-                await self.db.add_download(sender, msg_link, msg_id, chat, "error", 0, "failed")
+                await self.db.add_forward(sender, msg_link, msg_id, chat, "error", 0, "failed")
                 return await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {str(e)}')
             
         return True

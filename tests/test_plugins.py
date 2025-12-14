@@ -19,7 +19,7 @@ def test_plugin_imports():
     
     plugins_to_test = [
         "auth_commands",
-        "download_commands",
+
         "session_commands",
         "traffic_commands",
         "message_handler",
@@ -42,17 +42,17 @@ def test_plugin_imports():
     logger.info(f"\n插件导入测试结果: {success_count}/{len(plugins_to_test)} 个成功")
     return success_count == len(plugins_to_test)
 
-def test_download_commands_plugin():
-    """测试download_commands插件"""
-    logger.info("\n=== 测试download_commands插件 ===")
+def test_message_commands_plugin():
+    """测试message_commands插件"""
+    logger.info("\n=== 测试message_commands插件 ===")
     
     try:
-        from main.plugins.download_commands import DownloadCommands
+        from main.plugins.message_handler import MessageHandlerPlugin
         from main.core.base_plugin import plugin_registry
         
         # 尝试创建插件实例
-        plugin = DownloadCommands()
-        logger.info("✅ 成功创建DownloadCommands插件实例")
+        plugin = MessageHandlerPlugin()
+        logger.info("✅ 成功创建MessageHandler插件实例")
         
         # 检查插件是否有name属性
         if hasattr(plugin, "name"):
@@ -70,10 +70,10 @@ def test_download_commands_plugin():
                 logger.error(f"❌ 插件缺少{method}方法")
                 return False
         
-        logger.info("✅ download_commands插件测试通过")
+        logger.info("✅ message_commands插件测试通过")
         return True
     except Exception as e:
-        logger.error(f"❌ download_commands插件测试失败: {e}")
+        logger.error(f"❌ message_commands插件测试失败: {e}")
         return False
 
 def test_session_commands_plugin():
@@ -81,11 +81,11 @@ def test_session_commands_plugin():
     logger.info("\n=== 测试session_commands插件 ===")
     
     try:
-        from main.plugins.session_commands import SessionCommands
+        from main.plugins.session_commands import SessionPlugin
         
         # 尝试创建插件实例
-        plugin = SessionCommands()
-        logger.info("✅ 成功创建SessionCommands插件实例")
+        plugin = SessionPlugin()
+        logger.info("✅ 成功创建SessionPlugin插件实例")
         
         # 检查插件方法
         required_methods = ["on_load", "on_unload", "get_help_text"]
@@ -130,7 +130,7 @@ def main():
     
     tests = [
         ("插件导入测试", test_plugin_imports),
-        ("download_commands插件测试", test_download_commands_plugin),
+        ("message_commands插件测试", test_message_commands_plugin),
         ("session_commands插件测试", test_session_commands_plugin),
         ("插件注册表测试", test_plugin_registry)
     ]

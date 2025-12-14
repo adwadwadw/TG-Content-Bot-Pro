@@ -7,15 +7,12 @@ from typing import Optional, Any
 from ..core.base_plugin import BasePlugin
 from ..core.clients import client_manager
 from ..config import settings
-from ..services.download_service import download_service
+from ..services.message_service import message_service
 from ..services.traffic_service import traffic_service
 from ..utils.media_utils import screenshot
 
 from pyrogram import Client, filters
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
-from ethon.pyfunc import video_metadata
-from ethon.telefunc import fast_upload
-from telethon.tl.types import DocumentAttributeVideo
 from telethon import events
 
 class PyroplugPlugin(BasePlugin):

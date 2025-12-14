@@ -361,23 +361,13 @@ class TaskQueueService(Service):
     
     async def initialize(self) -> None:
         """初始化任务队列服务"""
-        from ..services.download_task_manager import download_task_manager
-        
-        self.logger.info("启动下载任务队列")
-        
-        await download_task_manager.start()
-        
-        self.logger.info("任务队列服务初始化完成")
+        # 已移除下载功能，跳过任务队列初始化
+        self.logger.info("ℹ️ 已移除下载功能，跳过任务队列初始化")
     
     async def shutdown(self) -> None:
         """关闭任务队列服务"""
-        from ..services.download_task_manager import download_task_manager
-        
-        self.logger.info("停止下载任务队列")
-        
-        await download_task_manager.stop()
-        
-        self.logger.info("任务队列服务已关闭")
+        # 已移除下载功能，跳过任务队列停止
+        self.logger.info("ℹ️ 已移除下载功能，跳过任务队列停止")
 
 
 # 创建全局应用实例

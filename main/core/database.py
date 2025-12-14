@@ -1,7 +1,7 @@
 """数据库管理模块
 
 该模块提供MongoDB数据库的连接管理和数据操作功能，
-包括用户管理、下载记录、流量统计等核心数据的存储和查询。
+包括用户管理、消息记录、流量统计等核心数据的存储和查询。
 """
 import asyncio
 import logging
@@ -58,7 +58,7 @@ class DatabaseManager:
     """MongoDB数据库管理器
     
     负责MongoDB数据库的连接管理、数据操作和连接池管理。
-    提供用户管理、下载记录、流量统计等核心功能。
+    提供用户管理、消息记录、流量统计等核心功能。
     """
     
     def __init__(self) -> None:
@@ -133,8 +133,8 @@ class DatabaseManager:
             # 用户索引
             self.db.users.create_index("user_id", unique=True)
             
-            # 下载历史索引
-            self.db.download_history.create_index([("user_id", 1), ("download_date", -1)])
+            # 消息历史索引
+            self.db.message_history.create_index([("user_id", 1), ("forward_date", -1)])
             
             # 批量任务索引
             self.db.batch_tasks.create_index([("user_id", 1), ("start_time", -1)])
@@ -244,9 +244,9 @@ class DatabaseManager:
                             "join_date": now,
                             "is_banned": False,
                             "is_authorized": is_authorized,  # 添加授权字段
-                            "total_downloads": 0,
+                            "total_forwards": 0,
                             "total_size": 0,
-                            "last_download": None,
+                            "last_forward": None,
                             "daily_upload": 0,
                             "daily_download": 0,
                             "monthly_upload": 0,
@@ -361,11 +361,11 @@ class DatabaseManager:
                 logger.error(f"获取用户数失败: {e}")
                 return 0
     
-    # ==================== 下载管理 ====================
+    # ==================== 消息管理 ====================
     
-    async def add_download(self, user_id: int, message_link: str, message_id: int, 
-                          chat_id: str, media_type: str, file_size: int = 0, status: str = "success") -> bool:
-        """添加下载记录
+    async def add_forward(self, user_id: int, message_link: str, message_id: int, 
+                         chat_id: str, media_type: str, file_size: int = 0, status: str = "success") -> bool:
+        """添加转发记录
         
         Args:
             user_id: 用户ID
@@ -374,7 +374,7 @@ class DatabaseManager:
             chat_id: 聊天ID
             media_type: 媒体类型
             file_size: 文件大小（字节）
-            status: 下载状态
+            status: 转发状态
             
         Returns:
             bool: 操作是否成功
@@ -387,15 +387,15 @@ class DatabaseManager:
                 self._ensure_connection()
                 now = datetime.now()
                 
-                # 添加下载历史
-                self.db.download_history.insert_one({
+                # 添加转发历史
+                self.db.message_history.insert_one({
                     "user_id": user_id,
                     "message_link": message_link,
                     "message_id": message_id,
                     "chat_id": chat_id,
                     "media_type": media_type,
                     "file_size": file_size,
-                    "download_date": now,
+                    "forward_date": now,
                     "status": status
                 })
                 
@@ -405,18 +405,18 @@ class DatabaseManager:
                         {"user_id": user_id},
                         {
                             "$inc": {
-                                "total_downloads": 1,
+                                "total_forwards": 1,
                                 "total_size": file_size
                             },
                             "$set": {
-                                "last_download": now
+                                "last_forward": now
                             }
                         }
                     )
                 
                 return True
             except Exception as e:
-                logger.error(f"添加下载记录失败: {e}")
+                logger.error(f"添加转发记录失败: {e}")
                 return False
     
     async def get_user_stats(self, user_id: int) -> Optional[Dict[str, Any]]:
@@ -439,9 +439,9 @@ class DatabaseManager:
                     return None
                 
                 return {
-                    "total_downloads": user.get("total_downloads", 0),
+                    "total_forwards": user.get("total_forwards", 0),
                     "total_size": user.get("total_size", 0),
-                    "last_download": user.get("last_download")
+                    "last_forward": user.get("last_forward")
                 }
             except Exception as e:
                 logger.error(f"获取用户统计失败: {e}")
@@ -536,15 +536,15 @@ class DatabaseManager:
         user = await self.get_user(user_id)
         return user and user.get('is_authorized', False)
     
-    async def get_download_history(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
-        """获取用户下载历史
+    async def get_forward_history(self, user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+        """获取用户转发历史
         
         Args:
             user_id: 用户ID
             limit: 返回记录数量限制
             
         Returns:
-            List[Dict[str, Any]]: 下载历史记录列表
+            List[Dict[str, Any]]: 转发历史记录列表
         """
         async with self._lock:
             if self.db is None:
@@ -553,8 +553,8 @@ class DatabaseManager:
             try:
                 self._ensure_connection()
                 history = list(
-                    self.db.download_history.find({"user_id": user_id})
-                    .sort("download_date", -1)
+                    self.db.message_history.find({"user_id": user_id})
+                    .sort("forward_date", -1)
                     .limit(limit)
                 )
                 
@@ -562,21 +562,21 @@ class DatabaseManager:
                     "message_link": h.get("message_link"),
                     "media_type": h.get("media_type"),
                     "file_size": h.get("file_size", 0),
-                    "download_date": h.get("download_date").isoformat() if h.get("download_date") else "",
+                    "forward_date": h.get("forward_date").isoformat() if h.get("forward_date") else "",
                     "status": h.get("status")
                 } for h in history]
             except Exception as e:
-                logger.error(f"获取下载历史失败: {e}")
+                logger.error(f"获取转发历史失败: {e}")
                 return []
     
-    async def get_recent_download_history(self, limit: int = 20) -> List[Dict[str, Any]]:
-        """获取所有用户最近的下载历史
+    async def get_recent_forward_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """获取所有用户最近的转发历史
         
         Args:
             limit: 返回记录数量限制
             
         Returns:
-            List[Dict[str, Any]]: 下载历史记录列表
+            List[Dict[str, Any]]: 转发历史记录列表
         """
         async with self._lock:
             if self.db is None:
@@ -585,8 +585,8 @@ class DatabaseManager:
             try:
                 self._ensure_connection()
                 history = list(
-                    self.db.download_history.find({})
-                    .sort("download_date", -1)
+                    self.db.message_history.find({})
+                    .sort("forward_date", -1)
                     .limit(limit)
                 )
                 
@@ -594,19 +594,19 @@ class DatabaseManager:
                     "message_link": h.get("message_link"),
                     "media_type": h.get("media_type"),
                     "file_size": h.get("file_size", 0),
-                    "download_date": h.get("download_date"),
+                    "forward_date": h.get("forward_date"),
                     "status": h.get("status"),
                     "user_id": h.get("user_id")
                 } for h in history]
             except Exception as e:
-                logger.error(f"获取最近下载历史失败: {e}")
+                logger.error(f"获取最近转发历史失败: {e}")
                 return []
     
-    async def get_total_downloads(self) -> int:
-        """获取总下载数
+    async def get_total_forwards(self) -> int:
+        """获取总转发数
         
         Returns:
-            int: 总下载数
+            int: 总转发数
         """
         async with self._lock:
             if self.db is None:
@@ -615,12 +615,12 @@ class DatabaseManager:
             try:
                 self._ensure_connection()
                 result = self.db.users.aggregate([
-                    {"$group": {"_id": None, "total": {"$sum": "$total_downloads"}}}
+                    {"$group": {"_id": None, "total": {"$sum": "$total_forwards"}}}
                 ])
                 data = list(result)
                 return data[0]["total"] if data else 0
             except Exception as e:
-                logger.error(f"获取总下载数失败: {e}")
+                logger.error(f"获取总转发数失败: {e}")
                 return 0
     
     # ==================== 批量任务管理 ====================
@@ -957,7 +957,7 @@ class DatabaseManager:
             file_size: 文件大小（字节）
             
         Returns:
-            tuple[bool, Optional[str]]: (是否允许下载, 限制信息)
+            tuple[bool, Optional[str]]: (是否允许转发, 限制信息)
         """
         if file_size < 0:
             return False, "文件大小无效"

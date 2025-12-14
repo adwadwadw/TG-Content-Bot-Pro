@@ -140,10 +140,10 @@ class StartPlugin(BasePlugin):
         # 获取用户统计信息
         stats = await user_service.get_user_stats(user_id)
         
-        text = f"发送任意消息链接即可克隆到这里。对于私密频道消息，请先发送邀请链接。\n\n"
+        text = f"发送任意消息链接即可转发到这里。对于私密频道消息，请先发送邀请链接。\n\n"
         if stats:
             text += f"📊 您的统计:\n"
-            text += f"• 总下载: {stats['total_downloads']}\n"
+            text += f"• 总转发: {stats['total_forwards']}\n"
             text += f"• 总大小: {stats['total_size'] / (1024*1024):.2f} MB\n\n"
         text += "**支持:** @tgxxtq"
         

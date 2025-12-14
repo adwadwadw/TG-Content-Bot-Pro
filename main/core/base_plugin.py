@@ -7,7 +7,7 @@ from ..core.clients import client_manager
 from ..services.user_service import user_service
 from ..services.session_service import session_service
 from ..services.traffic_service import traffic_service
-from ..services.download_service import download_service
+from ..services.message_service import message_service
 from ..utils.logging_config import get_logger
 
 
@@ -23,7 +23,7 @@ class BasePlugin(ABC):
         self.users = user_service
         self.sessions = session_service
         self.traffic = traffic_service
-        self.downloads = download_service
+        self.messages = message_service
     
     @abstractmethod
     async def on_load(self):

@@ -70,6 +70,10 @@ class SessionPlugin(BasePlugin):
         
         self.logger.info("会话管理插件事件处理器已移除")
     
+    def get_help_text(self):
+        """获取插件帮助文本"""
+        return "会话管理功能，包括添加、删除、查看SESSION等操作"
+    
     def _validate_session_string(self, session_string):
         """验证 SESSION 字符串格式 - 优化版本"""
         if not session_string:

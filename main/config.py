@@ -52,7 +52,7 @@ class Settings:
         # 安全配置
         self.ENCRYPTION_KEY: Optional[str] = self._get_config("ENCRYPTION_KEY", default=None, cast=str)
         
-        # 下载配置
+        # 转发配置
         self.YT_COOKIES: Optional[str] = self._get_config("YT_COOKIES", default=None, cast=str)
         self.INSTA_COOKIES: Optional[str] = self._get_config("INSTA_COOKIES", default=None, cast=str)
         
@@ -86,7 +86,7 @@ class Settings:
         self.CONNECT_TIMEOUT: int = self._get_config("CONNECT_TIMEOUT", default=30, cast=int)
         self.READ_TIMEOUT: int = self._get_config("READ_TIMEOUT", default=60, cast=int)
         
-        # 下载服务配置
+        # 转发服务配置
         self.DISABLE_DOWNLOAD_UPLOAD: bool = self._get_config("DISABLE_DOWNLOAD_UPLOAD", default=True, cast=bool)
     
     def _get_config(self, key: str, default: Any = undefined, cast: Optional[Any] = None) -> Any:
