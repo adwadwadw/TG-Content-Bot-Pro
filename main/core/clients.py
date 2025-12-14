@@ -184,7 +184,8 @@ class ClientManager:
             "session expired", 
             "session revoked", 
             "auth key not found",
-            "406 update_app_to_login"
+            "406 update_app_to_login",
+            "unpack requires a buffer"
         ]
         
         if any(keyword in error_msg for keyword in session_error_keywords):
