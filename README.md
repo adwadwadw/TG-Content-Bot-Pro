@@ -44,7 +44,7 @@ nano .env  # 或使用您喜欢的编辑器
 docker-compose up -d
 
 # 验证应用状态
-curl http://localhost:8080/health
+curl http://localhost:8089/health
 ```
 
 ## 📋 配置说明

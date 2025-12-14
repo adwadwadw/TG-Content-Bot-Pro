@@ -8,11 +8,11 @@ LABEL description="TG Content Bot Pro - 极速部署版本"
 WORKDIR /app
 
 # 暴露健康检查端口
-EXPOSE 8080
+EXPOSE 8089
 
 # 健康检查 - 使用HTTP健康检查接口
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8089/health || exit 1
 
 # 启动命令
 CMD ["sh", "start.sh"]
