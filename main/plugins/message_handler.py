@@ -5,7 +5,7 @@ from telethon import events
 from ..core.base_plugin import BasePlugin
 from ..core.clients import client_manager
 from ..config import settings
-from ..services.download_service import download_service
+from ..services.message_service import message_service
 from ..services.user_service import user_service
 from ..utils.media_utils import get_link
 
@@ -91,8 +91,8 @@ class MessageHandlerPlugin(BasePlugin):
         status_msg = await event.reply("⏳ 正在处理...")
         
         try:
-            # 调用下载服务处理消息
-            success = await download_service.download_message(
+            # 调用消息服务处理消息
+            success = await message_service.get_msg(
                 userbot=client_manager.userbot,
                 client=client_manager.pyrogram_bot,
                 telethon_bot=client_manager.bot,
@@ -103,9 +103,9 @@ class MessageHandlerPlugin(BasePlugin):
             )
             
             if success:
-                self.logger.info(f"用户 {user_id} 成功下载: {link}")
+                self.logger.info(f"用户 {user_id} 成功转发: {link}")
             else:
-                self.logger.warning(f"用户 {user_id} 下载失败: {link}")
+                self.logger.warning(f"用户 {user_id} 转发失败: {link}")
                 
         except Exception as e:
             self.logger.error(f"处理消息链接时出错: {e}", exc_info=True)

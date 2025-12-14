@@ -11,13 +11,9 @@ from typing import Optional, Any
 from pyrogram import Client
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid, PeerIdInvalid
 from telethon import TelegramClient
-from telethon.tl.types import DocumentAttributeVideo
-from ethon.pyfunc import video_metadata
-from ethon.telefunc import fast_upload
-
 from ..core.database import db_manager
 from ..services.traffic_service import traffic_service
-from ..utils.media_utils import screenshot, progress_for_pyrogram
+from ..utils.media_utils import progress_for_pyrogram
 from ..utils.file_manager import file_manager
 from ..utils.error_handler import safe_execute
 
@@ -59,14 +55,12 @@ class MessageService:
         
         edit = ""
         chat = ""
-        round_message = False
         
         # 处理链接中的参数
         if "?single" in msg_link:
             msg_link = msg_link.split("?single")[0]
         
         msg_id = int(msg_link.split("/")[-1]) + offset
-        height, width, duration, thumb_path = 90, 90, 0, None
         
         if 't.me/c/' in msg_link or 't.me/b/' in msg_link:
             if 't.me/b/' in msg_link:
@@ -74,139 +68,29 @@ class MessageService:
             else:
                 chat = int('-100' + str(msg_link.split("/")[-2]))
             
-            file = ""
             try:
+                # 使用userbot获取消息并直接转发
                 msg = await userbot.get_messages(chat, msg_id)
-                if msg.media:
-                    if msg.media == MessageMediaType.WEB_PAGE:
-                        edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-                        if msg.text:
-                            await client.send_message(sender, msg.text.markdown)
-                        await edit.delete()
-                        return True
                 
-                if not msg.media:
-                    if msg.text:
-                        edit = await client.edit_message_text(sender, edit_id, "克隆中...")
-                        await client.send_message(sender, msg.text.markdown)
-                        await edit.delete()
-                        return True
-                    else:
-                        await client.edit_message_text(sender, edit_id, "❌ 消息为空")
-                        return False
-                
-                edit = await client.edit_message_text(sender, edit_id, "尝试下载...")
-                
-                # 获取文件大小并检查流量限制
-                file_size = self._get_file_size(msg)
-                
-                # 检查流量限制
-                can_download, limit_msg = await self.traffic.check_traffic_limit(sender, file_size)
-                if not can_download:
-                    await client.edit_message_text(sender, edit_id, f"❌ {limit_msg}\n\n使用 /traffic 查看流量使用情况")
-                    await self.db.add_download(sender, msg_link, msg_id, str(chat), "限制", file_size, "failed")
-                    return False
-                
-                file = await userbot.download_media(
-                    msg,
-                    progress=progress_for_pyrogram,
-                    progress_args=(
-                        client,
-                        "**DOWNLOADING:**\n",
-                        edit,
-                        time.time()
-                    )
-                )
-                
-                if not file or not os.path.exists(file):
-                    await client.edit_message_text(sender, edit_id, "❌ 下载失败")
-                    await self.db.add_download(sender, msg_link, msg_id, str(chat), "download_error", file_size, "failed")
-                    return False
-                    
-                logger.info(f"下载完成: {file}")
-                await client.edit_message_text(sender, edit_id, '准备上传！')
-                
-                caption = None
-                if msg.caption is not None:
-                    caption = msg.caption
-                
-                if msg.media == MessageMediaType.VIDEO_NOTE:
-                    round_message = True
-                    logger.info("获取视频元数据")
-                    data = video_metadata(file)
-                    height, width, duration = data["height"], data["width"], data["duration"]
-                    logger.info(f'd: {duration}, w: {width}, h:{height}')
-                    try:
-                        thumb_path = await screenshot(file, duration, sender)
-                    except Exception:
-                        thumb_path = None
-                    await client.send_video_note(
-                        chat_id=sender,
-                        video_note=file,
-                        length=height, duration=duration, 
-                        thumb=thumb_path,
-                        progress=progress_for_pyrogram,
-                        progress_args=(
-                            client,
-                            '**UPLOADING:**\n',
-                            edit,
-                            time.time()
-                        )
-                    )
-                elif msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-                    logger.info("获取视频元数据")
-                    data = video_metadata(file)
-                    height, width, duration = data["height"], data["width"], data["duration"]
-                    logger.info(f'd: {duration}, w: {width}, h:{height}')
-                    try:
-                        thumb_path = await screenshot(file, duration, sender)
-                    except Exception:
-                        thumb_path = None
-                    await client.send_video(
-                        chat_id=sender,
-                        video=file,
-                        caption=caption,
-                        supports_streaming=True,
-                        height=height, width=width, duration=duration, 
-                        thumb=thumb_path,
-                        progress=progress_for_pyrogram,
-                        progress_args=(
-                            client,
-                            '**UPLOADING:**\n',
-                            edit,
-                            time.time()
-                        )
-                    )
-                
-                elif msg.media == MessageMediaType.PHOTO:
-                    await edit.edit("上传照片中...")
-                    await telethon_bot.send_file(sender, file, caption=caption)
+                # 检查消息类型并转发
+                if msg.text:
+                    # 文本消息 - 发送副本
+                    edit = await client.edit_message_text(sender, edit_id, "克隆中...")
+                    await client.send_message(sender, msg.text.markdown)
+                    await edit.delete()
+                elif msg.media:
+                    # 媒体消息 - 直接转发
+                    edit = await client.edit_message_text(sender, edit_id, "转发中...")
+                    await userbot.forward_messages(sender, chat, msg_id)
+                    await edit.delete()
                 else:
-                    thumb_path = self._get_thumbnail(sender)
-                    await client.send_document(
-                        sender,
-                        file, 
-                        caption=caption,
-                        thumb=thumb_path,
-                        progress=progress_for_pyrogram,
-                        progress_args=(
-                            client,
-                            '**UPLOADING:**\n',
-                            edit,
-                            time.time()
-                        )
-                    )
+                    await client.edit_message_text(sender, edit_id, "❌ 消息为空")
+                    return False
                 
-                # 清理临时文件
-                await self._cleanup_file(file)
-                
-                # 记录流量和下载成功
-                media_type = self._get_media_type(msg)
-                await self.db.add_traffic(sender, file_size, file_size)
-                await self.db.add_download(sender, msg_link, msg_id, str(chat), media_type, file_size, "success")
-                
-                await edit.delete()
+                # 记录成功转发
+                await self.db.add_download(sender, msg_link, msg_id, str(chat), "forwarded", 0, "success")
                 return True
+                
             except (ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid):
                 await client.edit_message_text(sender, edit_id, "您加入该频道了吗？")
                 await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", 0, "failed")
@@ -220,65 +104,24 @@ class MessageService:
                     new_link = f"t.me/b/{chat}/{msg_id}"
                 return await self.get_msg(userbot, client, telethon_bot, sender, edit_id, new_link, offset)
             except Exception as e:
-                logger.error(f"处理消息时出错: {e}", exc_info=True)
-                if self._is_telethon_fallback_needed(e):
-                    try: 
-                        if msg.media == MessageMediaType.VIDEO and msg.video.mime_type in ["video/mp4", "video/x-matroska"]:
-                            UT = time.time()
-                            uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
-                            attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)] 
-                            await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
-                        elif msg.media == MessageMediaType.VIDEO_NOTE:
-                            UT = time.time()
-                            uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
-                            attributes = [DocumentAttributeVideo(duration=duration, w=width, h=height, round_message=round_message, supports_streaming=True)] 
-                            await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, attributes=attributes, force_document=False)
-                        else:
-                            UT = time.time()
-                            uploader = await fast_upload(f'{file}', f'{file}', UT, telethon_bot, edit, '**UPLOADING:**')
-                            await telethon_bot.send_file(sender, uploader, caption=caption, thumb=thumb_path, force_document=True)
-                        
-                        # 清理临时文件
-                        await self._cleanup_file(file)
-                        
-                        # 记录流量和下载成功（Telethon上传）
-                        media_type = "video" if msg.video else "document"
-                        await self.db.add_traffic(sender, file_size, file_size)
-                        await self.db.add_download(sender, msg_link, msg_id, str(chat), media_type, file_size, "success")
-                        await edit.delete()
-                        return True
-                        
-                    except Exception as fallback_error:
-                        logger.error(f"Telethon上传失败: {fallback_error}", exc_info=True)
-                        error_msg = self._translate_error(str(fallback_error))
-                        await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {error_msg}')
-                        await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", file_size, "failed")
-                        await self._cleanup_file(file)
-                        return False 
-                else:
-                    error_msg = self._translate_error(str(e))
-                    await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {error_msg}')
-                    await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", file_size, "failed")
-                    await self._cleanup_file(file)
-                    return False
+                logger.error(f"转发消息时出错: {e}", exc_info=True)
+                await client.edit_message_text(sender, edit_id, f'转发失败: `{msg_link}`\n\n错误: {str(e)}')
+                await self.db.add_download(sender, msg_link, msg_id, str(chat), "error", 0, "failed")
+                return False
         else:
+            # 公开频道消息 - 直接复制
             edit = await client.edit_message_text(sender, edit_id, "克隆中...")
             chat = msg_link.split("t.me")[1].split("/")[1]
             try:
-                msg = await client.get_messages(chat, msg_id)
-                if msg.empty:
-                    new_link = f't.me/b/{chat}/{int(msg_id)}'
-                    # 递归调用
-                    return await self.get_msg(userbot, client, telethon_bot, sender, edit_id, new_link, offset)
                 await client.copy_message(sender, chat, msg_id)
-                # 记录成功下载
-                await self.db.add_download(sender, msg_link, msg_id, chat, "text", 0, "success")
+                # 记录成功复制
+                await self.db.add_download(sender, msg_link, msg_id, chat, "copied", 0, "success")
+                await edit.delete()
             except Exception as e:
                 logger.error(f"复制消息时出错: {e}", exc_info=True)
-                # 记录下载失败
+                # 记录失败
                 await self.db.add_download(sender, msg_link, msg_id, chat, "error", 0, "failed")
                 return await client.edit_message_text(sender, edit_id, f'保存失败: `{msg_link}`\n\n错误: {str(e)}')
-            await edit.delete()
             
         return True
     

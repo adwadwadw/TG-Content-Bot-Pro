@@ -6,7 +6,7 @@ from typing import Dict
 from ..core.base_plugin import BasePlugin
 from ..core.clients import client_manager
 from ..config import settings
-from ..services.download_service import download_service
+from ..services.message_service import message_service
 from ..services.download_task_manager import download_task_manager
 from ..utils.media_utils import get_link
 from ..utils.error_handler import safe_execute
@@ -16,7 +16,7 @@ from pyrogram import Client
 from pyrogram.errors import FloodWait
 
 class BatchPlugin(BasePlugin):
-    """批量下载插件"""
+    """批量转发插件"""
     
     def __init__(self):
         super().__init__("batch")
@@ -117,7 +117,7 @@ class BatchPlugin(BasePlugin):
             
             self.batch_users.add(event.sender_id)
             
-            # 直接运行批量下载（不通过任务队列）
+            # 直接运行批量转发（不通过任务队列）
             await self._run_batch(client_manager.userbot, client_manager.pyrogram_bot, 
                                 event.sender_id, link, value, messages_to_delete)
             
@@ -127,7 +127,7 @@ class BatchPlugin(BasePlugin):
     @safe_execute(default_return=False)
     async def _run_batch(self, userbot: Client, client: Client, sender: int, 
                         link: str, range_count: int, messages_to_delete: list = None):
-        """运行批量下载任务"""
+        """运行批量转发任务"""
         completed = 0
         failed = 0
         progress_messages = []  # 收集进度消息ID
@@ -145,8 +145,8 @@ class BatchPlugin(BasePlugin):
                 break
             
             try:
-                # 直接调用download_service，不经过任务队列
-                success = await download_service.download_message(userbot, client, client_manager.bot, sender, 0, link, i)
+                # 直接调用message_service，不经过任务队列
+                success = await message_service.get_msg(userbot, client, client_manager.bot, sender, 0, link, i)
                 
                 if success:
                     completed += 1
@@ -163,7 +163,7 @@ class BatchPlugin(BasePlugin):
                 await asyncio.sleep(fw.value)
                 
                 try:
-                    success = await download_service.download_message(userbot, client, client_manager.bot, sender, 0, link, i)
+                    success = await message_service.get_msg(userbot, client, client_manager.bot, sender, 0, link, i)
                     if success:
                         completed += 1
                     else:
