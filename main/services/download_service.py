@@ -308,16 +308,12 @@ class VideoDownloader:
                 # 从配置中获取是否禁用下载-上传模式
                 from ..config import settings
                 
-                # 尝试使用forward_messages转发消息（Telethon方法）
+                # 尝试使用消息对象的forward_to方法转发（更可靠）
                 try:
                     await status_msg.edit("✅ 正在转发媒体...")
                     
-                    # 使用forward_messages转发消息
-                    await telethon_bot.forward_messages(
-                        sender,
-                        chat_entity,
-                        message_id
-                    )
+                    # 使用消息对象的forward_to方法转发
+                    await message.forward_to(sender)
                     
                     await status_msg.edit("✅ 转发完成")
                     self.logger.info(f"成功转发媒体: {msg_link}")
