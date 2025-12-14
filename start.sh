@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # 极速启动脚本 - TG Content Bot Pro
 

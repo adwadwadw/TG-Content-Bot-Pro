@@ -10,8 +10,15 @@ def setup_logging():
     """设置日志配置 - 每日日志文件，重启时添加序号"""
     # 创建日志目录
     log_dir = "logs"
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
+    try:
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+    except PermissionError:
+        # 如果没有权限创建目录，使用临时目录
+        log_dir = "/tmp/tg_bot_logs"
+        if not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+        print(f"⚠️  无法在当前目录创建日志目录，使用临时目录: {log_dir}")
     
     # 生成带日期和重启序号的日志文件名
     today = datetime.now().strftime("%Y%m%d")
@@ -58,14 +65,20 @@ def setup_logging():
     console_handler.setFormatter(formatter)
     
     # 文件处理器（使用新的日志文件名）
-    file_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
-    file_handler.setLevel(log_level)
-    file_handler.setFormatter(formatter)
+    try:
+        file_handler = logging.FileHandler(log_file, mode='w', encoding='utf-8')
+        file_handler.setLevel(log_level)
+        file_handler.setFormatter(formatter)
+    except PermissionError:
+        # 如果无法创建文件处理器，只使用控制台处理器
+        print(f"⚠️  无法创建日志文件 {log_file}，仅使用控制台日志")
+        file_handler = None
     
     # 添加处理器到根日志记录器
     root_logger.setLevel(log_level)
     root_logger.addHandler(console_handler)
-    root_logger.addHandler(file_handler)
+    if file_handler:
+        root_logger.addHandler(file_handler)
     
     # 为不同模块设置合理的日志级别 - 优化日志量
     logging.getLogger("pyrogram").setLevel(logging.WARNING)  # 减少Pyrogram日志级别
