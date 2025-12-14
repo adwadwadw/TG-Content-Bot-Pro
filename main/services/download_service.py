@@ -308,30 +308,30 @@ class VideoDownloader:
                 # 从配置中获取是否禁用下载-上传模式
                 from ..config import settings
                 
-                # 尝试使用copy_message（更可靠的方式）
+                # 尝试使用forward_messages转发消息（Telethon方法）
                 try:
-                    await status_msg.edit("✅ 正在复制媒体...")
+                    await status_msg.edit("✅ 正在转发媒体...")
                     
-                    # 使用copy_message复制消息（不使用forward_messages，避免reply_to问题）
-                    await telethon_bot.copy_message(
+                    # 使用forward_messages转发消息
+                    await telethon_bot.forward_messages(
                         sender,
                         chat_entity,
                         message_id
                     )
                     
-                    await status_msg.edit("✅ 复制完成")
-                    self.logger.info(f"成功复制媒体: {msg_link}")
+                    await status_msg.edit("✅ 转发完成")
+                    self.logger.info(f"成功转发媒体: {msg_link}")
                     return True
-                except Exception as copy_error:
-                    self.logger.warning(f"复制失败: {copy_error}")
+                except Exception as forward_error:
+                    self.logger.warning(f"转发失败: {forward_error}")
                     
                     # 如果禁用了下载-上传模式，返回错误
                     if settings.DISABLE_DOWNLOAD_UPLOAD:
-                        await status_msg.edit("❌ 复制失败，且下载-上传模式已禁用")
+                        await status_msg.edit("❌ 转发失败，且下载-上传模式已禁用")
                         return False
                     
                     # 回退到下载-上传模式
-                    await status_msg.edit("✅ 复制失败，尝试下载模式...")
+                    await status_msg.edit("✅ 转发失败，尝试下载模式...")
                 
                 # 下载媒体到本地
                 await status_msg.edit("✅ 正在下载媒体...")
