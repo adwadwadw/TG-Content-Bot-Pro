@@ -7,6 +7,9 @@ LABEL description="TG Content Bot Pro - 极速部署版本"
 # 设置工作目录（继承基础镜像）
 WORKDIR /app
 
+# 创建日志目录并设置权限
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
 # 暴露健康检查端口
 EXPOSE 8089
 
