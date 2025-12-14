@@ -63,7 +63,7 @@ curl http://localhost:8089/health
 
 - `SESSION` - Pyrogram会话字符串（增强功能）
 - `FORCESUB` - 强制订阅频道（格式：`@channel_username`）
-- `HEALTH_CHECK_PORT` - 健康检查端口（默认：8080）
+- `HEALTH_CHECK_PORT` - 健康检查端口（默认：8089）
 
 ## 🔧 部署方式
 
@@ -82,7 +82,7 @@ services:
       - AUTH=${AUTH}
       - MONGO_DB=${MONGO_DB}
     ports:
-      - "8080:8080"
+      - "8089:8089"
 ```
 
 ### 直接Docker运行
@@ -90,7 +90,7 @@ services:
 ```bash
 docker run -d \
   --name tg-content-bot \
-  -p 8080:8080 \
+  -p 8089:8089 \
   -e API_ID=your_api_id \
   -e API_HASH=your_api_hash \
   -e BOT_TOKEN=your_bot_token \
