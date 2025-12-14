@@ -229,7 +229,7 @@ class ClientManager:
             # 获取代理配置
             telethon_proxy = self._get_telethon_proxy()
             
-            # 创建Telethon客户端
+            # 创建Telethon客户端，明确禁用不必要的服务
             if telethon_proxy:
                 # 检查代理类型
                 if isinstance(telethon_proxy, dict):
@@ -240,7 +240,10 @@ class ClientManager:
                         settings.API_ID, 
                         settings.API_HASH,
                         proxy=telethon_proxy,
-                        connection_retries=5
+                        connection_retries=5,
+                        auto_reconnect=True,
+                        retry_delay=1,
+                        flood_sleep_threshold=0  # 禁用自动睡眠
                     )
                 elif len(telethon_proxy) >= 5 and telethon_proxy[0] in ['socks5', 'socks4']:
                     # SOCKS代理带认证
@@ -250,7 +253,10 @@ class ClientManager:
                         settings.API_ID, 
                         settings.API_HASH,
                         proxy=telethon_proxy,
-                        connection_retries=5
+                        connection_retries=5,
+                        auto_reconnect=True,
+                        retry_delay=1,
+                        flood_sleep_threshold=0  # 禁用自动睡眠
                     )
                 elif len(telethon_proxy) >= 3:
                     # 不带认证的代理
@@ -260,7 +266,10 @@ class ClientManager:
                         settings.API_ID, 
                         settings.API_HASH,
                         proxy=telethon_proxy,
-                        connection_retries=5
+                        connection_retries=5,
+                        auto_reconnect=True,
+                        retry_delay=1,
+                        flood_sleep_threshold=0  # 禁用自动睡眠
                     )
                 else:
                     # 默认情况
@@ -270,11 +279,22 @@ class ClientManager:
                         settings.API_ID, 
                         settings.API_HASH,
                         proxy=telethon_proxy,
-                        connection_retries=5
+                        connection_retries=5,
+                        auto_reconnect=True,
+                        retry_delay=1,
+                        flood_sleep_threshold=0  # 禁用自动睡眠
                     )
             else:
                 logger.info("不使用代理直接连接Telegram")
-                self.bot = TelegramClient('bot', settings.API_ID, settings.API_HASH, connection_retries=5)
+                self.bot = TelegramClient(
+                    'bot', 
+                    settings.API_ID, 
+                    settings.API_HASH, 
+                    connection_retries=5,
+                    auto_reconnect=True,
+                    retry_delay=1,
+                    flood_sleep_threshold=0  # 禁用自动睡眠
+                )
             
             logger.info("Telethon bot客户端初始化完成")
         except Exception as e:
@@ -315,7 +335,11 @@ class ClientManager:
                         "SaveRestricted",
                         bot_token=settings.BOT_TOKEN,
                         api_id=settings.API_ID,
-                        api_hash=settings.API_HASH
+                        api_hash=settings.API_HASH,
+                        sleep_threshold=0,  # 禁用自动睡眠
+                        no_updates=False,  # 确保接收更新
+                        takeout=False,  # 禁用takeout模式
+                        hide_password=True  # 隐藏密码输入
                     )
                 else:
                     # 对于SOCKS代理或其他情况，正常使用proxy参数
@@ -324,14 +348,22 @@ class ClientManager:
                         bot_token=settings.BOT_TOKEN,
                         api_id=settings.API_ID,
                         api_hash=settings.API_HASH,
-                        proxy=pyrogram_proxy_config
+                        proxy=pyrogram_proxy_config,
+                        sleep_threshold=0,  # 禁用自动睡眠
+                        no_updates=False,  # 确保接收更新
+                        takeout=False,  # 禁用takeout模式
+                        hide_password=True  # 隐藏密码输入
                     )
             else:
                 self.pyrogram_bot = Client(
                     "SaveRestricted",
                     bot_token=settings.BOT_TOKEN,
                     api_id=settings.API_ID,
-                    api_hash=settings.API_HASH
+                    api_hash=settings.API_HASH,
+                    sleep_threshold=0,  # 禁用自动睡眠
+                    no_updates=False,  # 确保接收更新
+                    takeout=False,  # 禁用takeout模式
+                    hide_password=True  # 隐藏密码输入
                 )
             
             logger.info("Pyrogram bot客户端初始化完成")
@@ -408,7 +440,10 @@ class ClientManager:
                             session_string=settings.SESSION, 
                             api_hash=settings.API_HASH, 
                             api_id=settings.API_ID,
-                            sleep_threshold=0  # 添加sleep_threshold参数
+                            sleep_threshold=0,  # 禁用自动睡眠
+                            no_updates=False,  # 确保接收更新
+                            takeout=False,  # 禁用takeout模式
+                            hide_password=True  # 隐藏密码输入
                         )
                     else:
                         # 对于SOCKS代理或其他情况，正常使用proxy参数
@@ -418,7 +453,10 @@ class ClientManager:
                             api_hash=settings.API_HASH, 
                             api_id=settings.API_ID,
                             proxy=pyrogram_proxy_config,
-                            sleep_threshold=0  # 添加sleep_threshold参数
+                            sleep_threshold=0,  # 禁用自动睡眠
+                            no_updates=False,  # 确保接收更新
+                            takeout=False,  # 禁用takeout模式
+                            hide_password=True  # 隐藏密码输入
                         )
                 else:
                     self.userbot = Client(
@@ -426,7 +464,10 @@ class ClientManager:
                         session_string=settings.SESSION, 
                         api_hash=settings.API_HASH, 
                         api_id=settings.API_ID,
-                        sleep_threshold=0  # 添加sleep_threshold参数
+                        sleep_threshold=0,  # 禁用自动睡眠
+                        no_updates=False,  # 确保接收更新
+                        takeout=False,  # 禁用takeout模式
+                        hide_password=True  # 隐藏密码输入
                     )
                 
                 # 尝试启动Userbot
