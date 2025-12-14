@@ -3,6 +3,7 @@
 # Python
 __pycache__/
 *.py[cod]
+*.pyc
 *.class
 *.so
 .Python
@@ -30,17 +31,25 @@ venv/
 env/
 ENV/
 .venv
+env/
+venv*/
+pyvenv.cfg
 
 # Session files (contains sensitive data)
 *.session
 *.session-journal
-*.jpg
+*.dat
+*.db-journal
+*.db-shm
+*.db-wal
 
 # Environment variables (contains secrets)
 .env
 .env.local
 .env.backup
 .env.bak
+.env.*
+!.env.example
 
 # IDE
 .vscode/
@@ -50,6 +59,8 @@ ENV/
 *~
 .project
 .pydevproject
+*.sublime-project
+*.sublime-workspace
 
 # Testing
 .pytest_cache/
@@ -58,10 +69,13 @@ ENV/
 htmlcov/
 .tox/
 .nox/
+.coverage
+coverage.xml
 
 # Logs
 *.log
 logs/
+*.log.*
 
 # OS specific
 .DS_Store
@@ -71,18 +85,57 @@ logs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
 
 # Temporary
 *.tmp
 temp/
 tmp/
+*.temp
+*.bak
 
 # Database
 *.db
 *.sqlite
 *.sqlite3
+*.mdb
+*.accdb
+
+# Cache and runtime
+.cache/
+.runtime/
+*.cache
+*.pid
+*.lock
+.app.lock
 
 # Project specific
 .qoder/
 .db_initialized
 .codebuddy/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.pyc
+.pyo
+.pyd
+.ropeproject
+.ropeproject/
+.pytest_cache/
+.pytest_cache/
+
+# Media files (may contain sensitive content)
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.tiff
+*.webp
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.mkv

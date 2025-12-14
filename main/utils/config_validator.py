@@ -168,10 +168,15 @@ class ConfigValidator:
         
         # 加密密钥验证（如果存在）
         if settings.ENCRYPTION_KEY:
-            if len(settings.ENCRYPTION_KEY) < 16:
-                self.warnings.append(f"ENCRYPTION_KEY 长度过短，建议至少16位，当前为 {len(settings.ENCRYPTION_KEY)} 位")
-            elif len(settings.ENCRYPTION_KEY) < 32:
-                self.warnings.append(f"ENCRYPTION_KEY 长度建议至少32位以提高安全性，当前为 {len(settings.ENCRYPTION_KEY)} 位")
+            key_length = len(settings.ENCRYPTION_KEY)
+            if key_length < 3:
+                self.errors.append(f"ENCRYPTION_KEY 长度过短，必须在3-128个字符之间，当前为 {key_length} 位")
+            elif key_length > 128:
+                self.errors.append(f"ENCRYPTION_KEY 长度过长，必须在3-128个字符之间，当前为 {key_length} 位")
+            elif key_length < 16:
+                self.warnings.append(f"ENCRYPTION_KEY 长度较短（{key_length} 位），建议至少16位以提高安全性")
+            elif key_length < 32:
+                self.warnings.append(f"ENCRYPTION_KEY 长度建议至少32位以提高安全性，当前为 {key_length} 位")
     
     def _validate_environment_config(self) -> None:
         """验证环境相关配置"""
@@ -250,7 +255,7 @@ class ConfigValidator:
             "DEFAULT_PER_FILE_LIMIT": 104857600,  # 默认单文件限制（字节，100MB）
             
             # 健康检查配置
-            "HEALTH_CHECK_PORT": 8080  # 健康检查端口（1024-65535）
+            "HEALTH_CHECK_PORT": 8089  # 健康检查端口（1024-65535）
         }
     
     def generate_env_file_template(self) -> str:

@@ -95,7 +95,8 @@ def get_session_info(session_string: str) -> dict:
                 "test_mode": test_mode,
                 "user_id": user_id,
                 "is_bot": is_bot,
-                "length": len(session_string)
+                "length": len(session_string),
+                "valid": True
             }
     except Exception as e:
         logger.error(f"解析SESSION信息失败: {e}")

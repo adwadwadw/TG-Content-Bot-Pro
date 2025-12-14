@@ -146,7 +146,14 @@ class BatchPlugin(BasePlugin):
             
             try:
                 # 直接调用message_service，不经过任务队列
-                success = await message_service.get_msg(userbot, client, client_manager.bot, sender, 0, link, i)
+                # 创建一个临时的进度消息来避免edit_id为0的问题
+                progress_msg = await client.send_message(sender, "处理中...")
+                success = await message_service.get_msg(userbot, client, client_manager.bot, sender, progress_msg.id, link, i)
+                # 删除临时进度消息
+                try:
+                    await progress_msg.delete()
+                except:
+                    pass
                 
                 if success:
                     completed += 1
@@ -163,7 +170,14 @@ class BatchPlugin(BasePlugin):
                 await asyncio.sleep(fw.value)
                 
                 try:
-                    success = await message_service.get_msg(userbot, client, client_manager.bot, sender, 0, link, i)
+                    # 创建一个临时的进度消息来避免edit_id为0的问题
+                    progress_msg = await client.send_message(sender, "处理中...")
+                    success = await message_service.get_msg(userbot, client, client_manager.bot, sender, progress_msg.id, link, i)
+                    # 删除临时进度消息
+                    try:
+                        await progress_msg.delete()
+                    except:
+                        pass
                     if success:
                         completed += 1
                     else:

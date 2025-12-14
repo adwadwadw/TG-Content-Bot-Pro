@@ -32,22 +32,25 @@ class SessionService:
             if settings.ENCRYPTION_KEY:
                 key = settings.ENCRYPTION_KEY.encode()
                 
-                # 参考开源项目，使用更强的密钥派生机制
-                if len(key) != 32:
-                    # 使用随机盐增强安全性
-                    salt = secrets.token_bytes(16)  # 16字节随机盐
-                    kdf = PBKDF2HMAC(
-                        algorithm=hashes.SHA256(),
-                        length=32,
-                        salt=salt,
-                        iterations=100000,  # 高迭代次数增强安全性
-                    )
-                    key = base64.urlsafe_b64encode(kdf.derive(key))
-                else:
-                    # 如果已经是32字节，直接使用
-                    key = base64.urlsafe_b64encode(key)
+                # 使用固定盐确保重启后能正确解密
+                # 从ENCRYPTION_KEY派生固定盐以增强安全性
+                salt_kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=16,  # 16字节盐
+                    salt=b"fixed_salt_for_session_encryption",  # 固定盐种子
+                    iterations=10000,
+                )
+                salt = salt_kdf.derive(key)  # 从密钥派生固定盐
                 
-                self.cipher_suite = Fernet(key)
+                kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=32,
+                    salt=salt,
+                    iterations=100000,  # 高迭代次数增强安全性
+                )
+                derived_key = base64.urlsafe_b64encode(kdf.derive(key))
+                
+                self.cipher_suite = Fernet(derived_key)
                 logger.info("会话加密已启用（使用强加密机制）")
             else:
                 self.cipher_suite = None
@@ -233,8 +236,6 @@ class SessionService:
 
 # 全局会话服务实例
 session_service = SessionService()
-
-
 
 
 

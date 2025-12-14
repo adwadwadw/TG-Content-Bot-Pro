@@ -569,11 +569,12 @@ class DatabaseManager:
                 logger.error(f"获取转发历史失败: {e}")
                 return []
     
-    async def get_recent_forward_history(self, limit: int = 20) -> List[Dict[str, Any]]:
+    async def get_recent_forward_history(self, limit: int = 20, offset: int = 0) -> List[Dict[str, Any]]:
         """获取所有用户最近的转发历史
         
         Args:
             limit: 返回记录数量限制
+            offset: 偏移量，用于分页
             
         Returns:
             List[Dict[str, Any]]: 转发历史记录列表
@@ -584,22 +585,54 @@ class DatabaseManager:
             
             try:
                 self._ensure_connection()
-                history = list(
-                    self.db.message_history.find({})
-                    .sort("forward_date", -1)
-                    .limit(limit)
-                )
+                cursor = self.db.message_history.find({}).sort("forward_date", -1).skip(offset).limit(limit)
+                history = list(cursor)
                 
-                return [{
-                    "message_link": h.get("message_link"),
-                    "media_type": h.get("media_type"),
-                    "file_size": h.get("file_size", 0),
-                    "forward_date": h.get("forward_date"),
-                    "status": h.get("status"),
-                    "user_id": h.get("user_id")
-                } for h in history]
+                # 安全地序列化所有字段，处理MongoDB特殊对象类型
+                result = []
+                for h in history:
+                    # 处理ObjectId和其他MongoDB特殊类型
+                    record = {}
+                    for key, value in h.items():
+                        try:
+                            # 更安全地检查MongoDB ObjectId
+                            if hasattr(value, '__class__') and 'bson.objectid.ObjectId' in str(type(value)):
+                                record[key] = str(value)
+                            # 更安全地检查是否有isoformat方法（datetime对象）
+                            elif hasattr(value, 'isoformat') and callable(getattr(value, 'isoformat', None)):
+                                record[key] = value.isoformat()
+                            else:
+                                record[key] = value
+                        except Exception as e:
+                            logger.error(f"处理字段 {key} 时出错: {e}")
+                            # 如果有任何问题，直接使用原始值
+                            record[key] = value
+                    
+                    # 确保特定字段的类型安全转换
+                    if "message_link" in record and record["message_link"] is not None:
+                        record["message_link"] = str(record["message_link"])
+                    if "media_type" in record and record["media_type"] is not None:
+                        record["media_type"] = str(record["media_type"])
+                    if "file_size" in record and record["file_size"] is not None:
+                        try:
+                            record["file_size"] = int(record["file_size"])
+                        except (ValueError, TypeError):
+                            record["file_size"] = 0
+                    if "status" in record and record["status"] is not None:
+                        record["status"] = str(record["status"])
+                    if "user_id" in record and record["user_id"] is not None:
+                        try:
+                            record["user_id"] = int(record["user_id"])
+                        except (ValueError, TypeError):
+                            record["user_id"] = None
+                    
+                    result.append(record)
+                
+                return result
             except Exception as e:
                 logger.error(f"获取最近转发历史失败: {e}")
+                import traceback
+                logger.error(f"详细错误信息: {traceback.format_exc()}")
                 return []
     
     async def get_total_forwards(self) -> int:
@@ -1028,9 +1061,10 @@ class DatabaseManager:
                             "session_string": session_string,
                             "session_updated": datetime.now()
                         }
-                    }
+                    },
+                    upsert=True
                 )
-                return result.matched_count > 0 or result.modified_count > 0
+                return True
             except Exception as e:
                 logger.error(f"保存会话失败: {e}")
                 return False
@@ -1112,6 +1146,151 @@ class DatabaseManager:
                 logger.error(f"获取所有会话失败: {e}")
                 return []
 
+    async def reset_daily_traffic(self) -> bool:
+        """重置所有用户的每日流量统计
+        
+        Returns:
+            bool: 操作是否成功
+        """
+        async with self._lock:
+            if self.db is None:
+                return False
+            
+            try:
+                self._ensure_connection()
+                # 重置所有用户的每日流量统计
+                result = self.db.users.update_many(
+                    {},  # 匹配所有用户
+                    {
+                        "$set": {
+                            "daily_upload": 0,
+                            "daily_download": 0
+                        }
+                    }
+                )
+                logger.info(f"重置了 {result.modified_count} 个用户的每日流量统计")
+                return True
+            except Exception as e:
+                logger.error(f"重置每日流量统计失败: {e}")
+                return False
+
+    async def reset_monthly_traffic(self) -> bool:
+        """重置所有用户的每月流量统计
+        
+        Returns:
+            bool: 操作是否成功
+        """
+        async with self._lock:
+            if self.db is None:
+                return False
+            
+            try:
+                self._ensure_connection()
+                # 重置所有用户的每月流量统计
+                result = self.db.users.update_many(
+                    {},  # 匹配所有用户
+                    {
+                        "$set": {
+                            "monthly_upload": 0,
+                            "monthly_download": 0
+                        }
+                    }
+                )
+                logger.info(f"重置了 {result.modified_count} 个用户的每月流量统计")
+                return True
+            except Exception as e:
+                logger.error(f"重置每月流量统计失败: {e}")
+                return False
+
+    async def reset_all_traffic(self) -> bool:
+        """重置所有流量统计（包括历史累计）
+        
+        Returns:
+            bool: 操作是否成功
+        """
+        async with self._lock:
+            if self.db is None:
+                return False
+            
+            try:
+                self._ensure_connection()
+                # 重置所有流量统计（包括历史累计）
+                result = self.db.users.update_many(
+                    {},  # 匹配所有用户
+                    {
+                        "$set": {
+                            "daily_upload": 0,
+                            "daily_download": 0,
+                            "monthly_upload": 0,
+                            "monthly_download": 0,
+                            "total_upload": 0,
+                            "total_download": 0
+                        }
+                    }
+                )
+                logger.info(f"重置了 {result.modified_count} 个用户的所有流量统计")
+                return True
+            except Exception as e:
+                logger.error(f"重置所有流量统计失败: {e}")
+                return False
+
+    async def clear_forward_history(self) -> bool:
+        """清除所有转发历史记录
+        
+        Returns:
+            bool: 操作是否成功
+        """
+        async with self._lock:
+            if self.db is None:
+                return False
+            
+            try:
+                self._ensure_connection()
+                # 删除所有转发历史记录
+                result = self.db.message_history.delete_many({})
+                logger.info(f"清除了 {result.deleted_count} 条转发历史记录")
+                return True
+            except Exception as e:
+                logger.error(f"清除转发历史记录失败: {e}")
+                return False
+
 
 # 全局数据库管理器实例
 db_manager = DatabaseManager()
+
+
+# 添加额外的数据库方法
+async def reset_daily_traffic() -> bool:
+    """重置所有用户的每日流量统计
+    
+    Returns:
+        bool: 操作是否成功
+    """
+    return await db_manager.reset_daily_traffic()
+
+
+async def reset_monthly_traffic() -> bool:
+    """重置所有用户的每月流量统计
+    
+    Returns:
+        bool: 操作是否成功
+    """
+    return await db_manager.reset_monthly_traffic()
+
+
+async def reset_all_traffic() -> bool:
+    """重置所有流量统计（包括历史累计）
+    
+    Returns:
+        bool: 操作是否成功
+    """
+    return await db_manager.reset_all_traffic()
+
+
+async def clear_forward_history() -> bool:
+    """清除所有转发历史记录
+    
+    Returns:
+        bool: 操作是否成功
+    """
+    return await db_manager.clear_forward_history()

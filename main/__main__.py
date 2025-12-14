@@ -31,7 +31,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
 def start_health_server():
     """启动健康检查HTTP服务器"""
-    port = int(os.getenv('HEALTH_CHECK_PORT', '8080'))
+    port = int(os.getenv('HEALTH_CHECK_PORT', '8089'))
     server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
     logging.info(f"Health check server started on port {port}")
     server.serve_forever()

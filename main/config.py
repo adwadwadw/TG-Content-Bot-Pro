@@ -42,7 +42,9 @@ class Settings:
         self.API_ID: int = self._get_config("API_ID", cast=int)
         self.API_HASH: str = self._get_config("API_HASH", cast=str)
         self.BOT_TOKEN: str = self._get_config("BOT_TOKEN", cast=str)
-        self.SESSION: Optional[str] = self._get_config("SESSION", default=None, cast=str)
+        # 特殊处理SESSION配置，避免将None默认值转换为"None"字符串
+        session_value = self._get_config("SESSION", default=None)
+        self.SESSION: Optional[str] = session_value if session_value is None else str(session_value)
         self.FORCESUB: Optional[str] = self._get_config("FORCESUB", default=None, cast=str)
         self.AUTH: Union[int, str] = self._get_config("AUTH", cast=str)  # 支持逗号分隔的用户ID
         
@@ -52,9 +54,7 @@ class Settings:
         # 安全配置
         self.ENCRYPTION_KEY: Optional[str] = self._get_config("ENCRYPTION_KEY", default=None, cast=str)
         
-        # 转发配置
-        self.YT_COOKIES: Optional[str] = self._get_config("YT_COOKIES", default=None, cast=str)
-        self.INSTA_COOKIES: Optional[str] = self._get_config("INSTA_COOKIES", default=None, cast=str)
+
         
         # 性能配置
         self.MAX_WORKERS: int = self._get_config("MAX_WORKERS", default=3, cast=int)
@@ -76,7 +76,7 @@ class Settings:
         self.LOG_FILE: Optional[str] = self._get_config("LOG_FILE", default=None)
         
         # 健康检查配置
-        self.HEALTH_CHECK_PORT: int = self._get_config("HEALTH_CHECK_PORT", default=8080, cast=int)
+        self.HEALTH_CHECK_PORT: int = self._get_config("HEALTH_CHECK_PORT", default=8089, cast=int)
         
         # 重试配置
         self.MAX_RETRIES: int = self._get_config("MAX_RETRIES", default=3, cast=int)
@@ -308,8 +308,7 @@ class Settings:
             "AUTH": self.AUTH,
             "MONGO_DB": "***" if self.MONGO_DB and not include_sensitive else self.MONGO_DB,
             "ENCRYPTION_KEY": "***" if self.ENCRYPTION_KEY and not include_sensitive else self.ENCRYPTION_KEY,
-            "YT_COOKIES": "***" if self.YT_COOKIES and not include_sensitive else self.YT_COOKIES,
-            "INSTA_COOKIES": "***" if self.INSTA_COOKIES and not include_sensitive else self.INSTA_COOKIES,
+
             "MAX_WORKERS": self.MAX_WORKERS,
             "MIN_CONCURRENCY": self.MIN_CONCURRENCY,
             "MAX_CONCURRENCY": self.MAX_CONCURRENCY,

@@ -5,6 +5,8 @@ import asyncio
 import glob
 import os
 import threading
+import atexit
+import fcntl
 from datetime import datetime
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
@@ -19,6 +21,10 @@ from .config import settings
 # 设置日志
 setup_logging()
 logger = get_logger(__name__)
+
+# 单实例锁文件
+LOCK_FILE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".app.lock")
+lock_file = None
 
 
 # 健康检查处理器
@@ -45,9 +51,61 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         pass
 
 
+def acquire_lock():
+    """获取单实例锁"""
+    global lock_file
+    try:
+        # 检查锁文件是否已存在
+        if os.path.exists(LOCK_FILE_PATH):
+            # 尝试读取现有锁文件中的PID
+            try:
+                with open(LOCK_FILE_PATH, 'r') as f:
+                    existing_pid = f.read().strip()
+                    if existing_pid:
+                        # 检查该进程是否仍在运行
+                        try:
+                            os.kill(int(existing_pid), 0)  # 不发送信号，只检查进程是否存在
+                            logger.error(f"❌ 检测到另一个实例正在运行 (PID: {existing_pid})，无法启动多个实例")
+                            return False
+                        except (OSError, ValueError):
+                            # 进程不存在，可以安全地覆盖锁文件
+                            logger.warning(f"⚠️  检测到陈旧的锁文件 (PID: {existing_pid} 已不存在)，将重新创建锁")
+            except Exception as e:
+                logger.warning(f"⚠️  读取现有锁文件时出错: {e}，将重新创建锁")
+        
+        # 创建锁文件
+        lock_file = open(LOCK_FILE_PATH, 'w')
+        # 尝试获取独占锁
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        # 写入进程ID
+        lock_file.write(str(os.getpid()))
+        lock_file.flush()
+        logger.info("✅ 成功获取单实例锁")
+        return True
+    except IOError:
+        logger.error("❌ 无法获取单实例锁，可能已有另一个实例在运行")
+        if lock_file:
+            lock_file.close()
+            lock_file = None
+        return False
+
+def release_lock():
+    """释放单实例锁"""
+    global lock_file
+    if lock_file:
+        try:
+            # 删除锁文件
+            os.unlink(LOCK_FILE_PATH)
+            lock_file.close()
+            logger.info("🔒 单实例锁已释放")
+        except Exception as e:
+            logger.error(f"❌ 释放单实例锁时出错: {e}")
+        finally:
+            lock_file = None
+
 def start_health_server():
     """启动健康检查HTTP服务器"""
-    port = int(os.getenv('HEALTH_CHECK_PORT', '8080'))
+    port = int(os.getenv('HEALTH_CHECK_PORT', '8089'))
     try:
         server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
         logger.info(f"✅ 健康检查服务器已启动，端口: {port}")
@@ -130,6 +188,7 @@ async def setup_commands():
         BotCommand("totaltraffic", "🌐 查看总流量（仅所有者）"),
         BotCommand("setlimit", "⚙️ 设置流量限制（仅所有者）"),
         BotCommand("resettraffic", "🔄 重置流量统计（仅所有者）"),
+        BotCommand("clearhistory", "🗑️ 清除转发历史（仅所有者）"),
         BotCommand("addsession", "➕ 添加SESSION（仅所有者）"),
         BotCommand("generatesession", "🔐 在线生成SESSION（仅所有者）"),
         BotCommand("cancelsession", "🚫 取消SESSION生成（仅所有者）"),
@@ -253,7 +312,7 @@ async def main_async():
         # 如果启动失败（配置无效），进入降级模式
         if startup_result is False:
             logger.info("📡 降级模式启动完成 - 仅健康检查服务可用")
-            logger.info("🔗 健康检查地址: http://localhost:8080/health")
+            logger.info("🔗 健康检查地址: http://localhost:8089/health")
             logger.info("💡 请配置有效的Telegram API凭证以启用完整功能")
             
             # 保持应用运行，提供健康检查服务
@@ -272,7 +331,7 @@ async def main_async():
             await client_manager.bot.run_until_disconnected()
         else:
             logger.warning("⚠️ 客户端未初始化或未连接，机器人将以降级模式运行...")
-            logger.info("📡 健康检查服务器已启动，可以访问 http://localhost:8080/health 检查服务状态")
+            logger.info("📡 健康检查服务器已启动，可以访问 http://localhost:8089/health 检查服务状态")
             logger.info("⏰ 应用将保持运行，等待客户端连接...")
             
             # 保持应用运行，即使客户端未连接
@@ -294,6 +353,15 @@ async def main_async():
 
 def main():
     """主函数"""
+    # 检查是否能获取单实例锁
+    if not acquire_lock():
+        logger.error("🚨 程序已在运行中，无法启动多个实例")
+        logger.info("💡 如需启动新实例，请先停止当前运行的实例")
+        sys.exit(1)
+    
+    # 注册退出处理函数，确保程序退出时释放锁
+    atexit.register(release_lock)
+    
     # 在后台启动健康检查服务器
     health_thread = threading.Thread(target=start_health_server, daemon=True)
     health_thread.start()
@@ -305,6 +373,9 @@ def main():
         logger.info("收到中断信号")
     except Exception as e:
         logger.error(f"主函数出错: {e}", exc_info=True)
+    finally:
+        # 确保释放锁
+        release_lock()
 
 
 if __name__ == "__main__":

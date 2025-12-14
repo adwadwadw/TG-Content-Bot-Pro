@@ -60,8 +60,6 @@ class StartPlugin(BasePlugin):
     async def set_thumbnail(self, event):    
         """设置用户缩略图"""
         drone = event.client                    
-        button = await event.get_message()
-        msg = await button.get_reply_message() 
         await event.delete()
         
         async with drone.conversation(event.chat_id) as conv:
@@ -70,15 +68,17 @@ class StartPlugin(BasePlugin):
                 x = await conv.get_reply(timeout=60)
                 
                 if not x.media:
-                    return await xx.edit("未找到媒体文件。")
+                    await xx.delete()
+                    return await conv.send_message("未找到媒体文件。")
                 
                 mime = x.file.mime_type
-                if not any(ext in mime for ext in ['png', 'jpg', 'jpeg']):
-                    return await xx.edit("未找到图片。")
+                if mime and not any(ext in mime for ext in ['image/png', 'image/jpg', 'image/jpeg']):
+                    await xx.delete()
+                    return await conv.send_message("请发送有效的图片文件（PNG、JPG、JPEG）。")
                 
                 await xx.delete()
-                t = await event.client.send_message(event.chat_id, '处理中...')
-                path = await event.client.download_media(x.media)
+                t = await conv.send_message('处理中...')
+                path = await drone.download_media(x.media)
                 
                 # 使用文件管理器安全处理文件
                 user_thumb = f'{event.sender_id}.jpg'
@@ -86,13 +86,17 @@ class StartPlugin(BasePlugin):
                     file_manager.safe_remove(user_thumb)
                 
                 file_manager.move_file(path, user_thumb)
-                await t.edit("临时缩略图已保存！")
+                await t.edit("✅ 缩略图已保存！")
                 
             except TimeoutError:
                 await conv.send_message("⏱️ 操作超时，请重新尝试。")
             except Exception as e:
                 logger.error(f"设置缩略图失败: {e}", exc_info=True)
-                await conv.send_message(f"❌ 设置失败: {str(e)}")
+                # 尝试发送错误消息，但如果失败则忽略
+                try:
+                    await conv.send_message(f"❌ 设置失败: {str(e)}")
+                except:
+                    pass
     
     async def remove_thumbnail(self, event):
         """删除用户缩略图"""

@@ -85,6 +85,7 @@ class HelpPlugin(BasePlugin):
 **流量控制**
 `/setlimit` - ⚙️ 设置流量限制（仅所有者）
 `/resettraffic` - 🔄 重置流量统计（仅所有者）
+`/clearhistory` - 🗑️ 清除转发历史（仅所有者）
 
 **SESSION管理**
 `/addsession` - ➕ 添加SESSION（仅所有者）

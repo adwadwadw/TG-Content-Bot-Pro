@@ -10,6 +10,9 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app
 
+# 创建非root用户（安全最佳实践）
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
 # 安装系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -23,39 +26,37 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# 升级pip并设置镜像源
-RUN pip install --upgrade pip && \
-    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+# 升级pip（使用默认PyPI源，适合国际平台）
+RUN pip install --upgrade pip
 
 # 复制依赖文件
 COPY requirements.txt .
 
-# 安装Python依赖（分步安装，避免冲突）
-RUN pip install --no-cache-dir cryptography==41.0.7 && \
-    pip install --no-cache-dir pymongo==4.5.0 && \
-    pip install --no-cache-dir dnspython==2.4.2 && \
-    pip install --no-cache-dir python-decouple==3.8 && \
-    pip install --no-cache-dir nest-asyncio==1.5.8 && \
-    pip install --no-cache-dir telethon==1.28.5 && \
-    pip install --no-cache-dir pyrogram==2.0.106 && \
-    pip install --no-cache-dir ethon==0.1.4 && \
-    pip install --no-cache-dir cryptg==0.4.0 && \
-    pip install --no-cache-dir tgcrypto==1.2.5
+# 安装Python依赖（优化安装顺序，减少层数）
+RUN pip install --no-cache-dir -r requirements.txt
 
-# 复制应用代码（排除不必要的文件）
+# 复制应用代码
 COPY main/ ./main/
 COPY start.sh .
-COPY .dockerignore .
 
 # 设置执行权限
 RUN chmod +x start.sh
 
-# 暴露健康检查端口
-EXPOSE 8080
+# 更改文件所有者
+RUN chown -R appuser:appuser /app
 
-# 健康检查 - 使用HTTP健康检查接口
+# 切换到非root用户
+USER appuser
+
+# 暴露健康检查端口（固定为8089以匹配Render配置）
+EXPOSE 8089
+
+# 定义卷用于日志持久化（可选）
+VOLUME ["/app/logs"]
+
+# Render平台健康检查 - 使用TCP探针而不是HTTP（更适合Render）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8089/health || exit 1
 
 # 启动命令
 CMD ["sh", "start.sh"]

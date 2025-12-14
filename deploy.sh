@@ -242,7 +242,7 @@ MONGO_DB=your_mongodb_connection_string
 # 可选配置
 SESSION=your_pyrogram_session_string
 FORCESUB=your_channel_username
-HEALTH_CHECK_PORT=8080
+HEALTH_CHECK_PORT=8089
 
 # 代理配置（如需要，请取消注释并填写实际值）
 # TELEGRAM_PROXY_SCHEME=socks5
@@ -281,7 +281,7 @@ show_env_config_guide() {
     echo "可选参数："
     echo "6. FORCESUB: 强制订阅频道用户名（不带@）"
     echo "7. SESSION: Pyrogram会话字符串（可自动生成）"
-    echo "8. HEALTH_CHECK_PORT: 健康检查端口（默认8080）"
+    echo "8. HEALTH_CHECK_PORT: 健康检查端口（默认8089）"
     echo "9. TELEGRAM_PROXY_*: 代理配置（如需要）"
     echo ""
     echo "快速获取方式："

@@ -5,21 +5,32 @@ services:
     build: .
     container_name: tg-content-bot
     restart: unless-stopped
-    environment:
-      # 必需配置
-      API_ID: ${API_ID}
-      API_HASH: ${API_HASH}
-      BOT_TOKEN: ${BOT_TOKEN}
-      AUTH: ${AUTH}
-      MONGO_DB: ${MONGO_DB}
-      
-      # 可选配置
-      SESSION: ${SESSION:-}
-      FORCESUB: ${FORCESUB:-}
+    
+    # 环境变量配置
+    env_file:
+      - .env
+    
+    # 或者使用environment配置（适合CI/CD）
+    # environment:
+    #   # 必需配置
+    #   API_ID: ${API_ID}
+    #   API_HASH: ${API_HASH}
+    #   BOT_TOKEN: ${BOT_TOKEN}
+    #   AUTH: ${AUTH}
+    #   MONGO_DB: ${MONGO_DB}
+    #   
+    #   # 可选配置
+    #   SESSION: ${SESSION:-}
+    #   FORCESUB: ${FORCESUB:-}
+    #   HEALTH_CHECK_PORT: ${HEALTH_CHECK_PORT:-8089}
     
     # 端口映射 - 用于健康检查
     ports:
-      - "8080:8080"
+      - "8089:8089"
+    
+    # 卷挂载 - 用于日志持久化
+    volumes:
+      - ./logs:/app/logs
     
     # 日志配置
     logging:
@@ -27,3 +38,11 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    
+    # 健康检查（Docker层面）
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8089/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
